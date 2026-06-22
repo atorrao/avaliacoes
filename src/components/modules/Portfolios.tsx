@@ -28,7 +28,10 @@ export default function Portfolios() {
   })
 
   const create = useMutation({
-    mutationFn: async () => { await supabase.from('portfolios').insert(form) },
+    mutationFn: async () => {
+      const { error } = await supabase.from('portfolios').insert(form)
+      if (error) throw error
+    },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['portfolios'] })
       toast.success('Portfólio criado')
@@ -39,13 +42,19 @@ export default function Portfolios() {
   })
 
   const del = useMutation({
-    mutationFn: (id: string) => supabase.from('portfolios').delete().eq('id', id),
-    onSuccess: () => { qc.invalidateQueries({ queryKey: ['portfolios'] }); toast.success('Eliminado') },
+    mutationFn: async (id: string) => {
+      const { error } = await supabase.from('portfolios').delete().eq('id', id)
+      if (error) throw error
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['portfolios'] })
+      toast.success('Eliminado')
+    },
     onError: (e: any) => toast.error(e.message)
   })
 
   const statusLabel: any = { active: 'Activo', completed: 'Concluído', archived: 'Arquivado' }
-  const statusBadge: any = { active: 'green',  completed: 'blue',      archived: 'gray' }
+  const statusBadge: any = { active: 'green', completed: 'blue', archived: 'gray' }
 
   return (
     <div>
@@ -67,7 +76,9 @@ export default function Portfolios() {
                     <div className="flex items-center gap-1">
                       <Badge variant={statusBadge[p.status]}>{statusLabel[p.status]}</Badge>
                       <button className="btn p-1.5 text-red-500 hover:bg-red-50 ml-1"
-                        onClick={() => confirm('Eliminar portfólio?') && del.mutate(p.id)}><Trash2 size={13}/></button>
+                        onClick={() => { if (confirm('Eliminar portfólio?')) del.mutate(p.id) }}>
+                        <Trash2 size={13}/>
+                      </button>
                     </div>
                   </div>
                   {p.description && <p className="text-xs text-gray-500">{p.description}</p>}

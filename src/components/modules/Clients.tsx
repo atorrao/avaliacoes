@@ -24,9 +24,11 @@ export default function Clients() {
   const upsert = useMutation({
     mutationFn: async (f: typeof empty) => {
       if (editing) {
-        await supabase.from('clients').update(f).eq('id', editing.id)
+        const { error } = await supabase.from('clients').update(f).eq('id', editing.id)
+        if (error) throw error
       } else {
-        await supabase.from('clients').insert(f)
+        const { error } = await supabase.from('clients').insert(f)
+        if (error) throw error
       }
     },
     onSuccess: () => {
@@ -38,8 +40,14 @@ export default function Clients() {
   })
 
   const del = useMutation({
-    mutationFn: (id: string) => supabase.from('clients').delete().eq('id', id),
-    onSuccess: () => { qc.invalidateQueries({ queryKey: ['clients'] }); toast.success('Cliente eliminado') },
+    mutationFn: async (id: string) => {
+      const { error } = await supabase.from('clients').delete().eq('id', id)
+      if (error) throw error
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['clients'] })
+      toast.success('Cliente eliminado')
+    },
     onError: (e: any) => toast.error(e.message)
   })
 
@@ -70,7 +78,9 @@ export default function Clients() {
                     <div className="flex gap-1">
                       <button className="btn p-1.5" onClick={() => openEdit(c)}><Pencil size={13}/></button>
                       <button className="btn p-1.5 text-red-500 hover:bg-red-50"
-                        onClick={() => confirm('Eliminar cliente?') && del.mutate(c.id)}><Trash2 size={13}/></button>
+                        onClick={() => { if (confirm('Eliminar cliente?')) del.mutate(c.id) }}>
+                        <Trash2 size={13}/>
+                      </button>
                     </div>
                   </div>
                   <div className="text-xs text-gray-500 space-y-0.5">
