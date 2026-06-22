@@ -3,7 +3,6 @@ import { supabase } from '@/lib/supabase'
 import { PageHeader, KpiCard, VisitBadge, BillingBadge } from '@/components/ui'
 import { formatCurrency, formatDate } from '@/lib/utils'
 import { Link } from 'react-router-dom'
-import type { Property } from '@/types/database'
 
 function useStats() {
   return useQuery({
@@ -17,8 +16,8 @@ function useStats() {
           .limit(8),
       ])
       return {
-        properties: propsRes.data ?? [],
-        recent: recentRes.data ?? [],
+        properties: (propsRes.data ?? []) as any[],
+        recent:     (recentRes.data ?? []) as any[],
       }
     }
   })
@@ -28,12 +27,12 @@ export default function Dashboard() {
   const { data, isLoading } = useStats()
 
   const total    = data?.properties.length ?? 0
-  const visited  = data?.properties.filter(p => p.visit_status !== 'pending').length ?? 0
-  const reportOk = data?.properties.filter(p => p.visit_status === 'report_done').length ?? 0
+  const visited  = data?.properties.filter((p: any) => p.visit_status !== 'pending').length ?? 0
+  const reportOk = data?.properties.filter((p: any) => p.visit_status === 'report_done').length ?? 0
 
   const toReceive = data?.properties
-    .filter(p => ['awaiting_po','po_received','invoice_pending','invoice_issued'].includes(p.billing_status))
-    .reduce((s, p) => s + (p.fee_amount ?? 0), 0) ?? 0
+    .filter((p: any) => ['awaiting_po','po_received','invoice_pending','invoice_issued'].includes(p.billing_status))
+    .reduce((s: number, p: any) => s + (p.fee_amount ?? 0), 0) ?? 0
 
   const pct = total > 0 ? Math.round((visited / total) * 100) : 0
 
@@ -42,29 +41,23 @@ export default function Dashboard() {
       <PageHeader title="Dashboard" subtitle="Visão geral do portfólio" />
 
       <div className="p-6 space-y-6">
-        {/* KPIs */}
         <div className="grid grid-cols-4 gap-4">
-          <KpiCard label="Total portfólio"      value={total}           sub="imóveis" />
-          <KpiCard label="Visitados"             value={`${pct}%`}       sub={`${visited} de ${total}`} color="green" />
-          <KpiCard label="Reports concluídos"   value={reportOk}        sub="imóveis" color="green" />
-          <KpiCard label="A receber"             value={formatCurrency(toReceive)} sub="PO + faturas"  color={toReceive > 0 ? 'amber' : 'default'} />
+          <KpiCard label="Total portfólio"    value={total}                    sub="imóveis" />
+          <KpiCard label="Visitados"          value={`${pct}%`}                sub={`${visited} de ${total}`} color="green" />
+          <KpiCard label="Reports concluídos" value={reportOk}                 sub="imóveis" color="green" />
+          <KpiCard label="A receber"          value={formatCurrency(toReceive)} sub="PO + faturas" color={toReceive > 0 ? 'amber' : 'default'} />
         </div>
 
-        {/* Progresso */}
         <div className="card">
           <div className="flex justify-between text-sm mb-2">
             <span className="text-gray-600 font-medium">Progresso do portfólio</span>
             <span className="text-gray-500">{visited} / {total} visitados</span>
           </div>
           <div className="h-2 bg-gray-100 rounded-full overflow-hidden">
-            <div
-              className="h-full bg-brand-400 rounded-full transition-all"
-              style={{ width: `${pct}%` }}
-            />
+            <div className="h-full bg-brand-400 rounded-full transition-all" style={{ width: `${pct}%` }} />
           </div>
         </div>
 
-        {/* Últimos processos */}
         <div className="card">
           <div className="flex items-center justify-between mb-4">
             <h2 className="text-sm font-semibold text-gray-800">Últimos processos</h2>
@@ -77,17 +70,12 @@ export default function Dashboard() {
             <table className="table-base">
               <thead>
                 <tr>
-                  <th>Ref.</th>
-                  <th>Localização</th>
-                  <th>Tipo</th>
-                  <th>Visita</th>
-                  <th>Financeiro</th>
-                  <th>Honorário</th>
-                  <th>Actualizado</th>
+                  <th>Ref.</th><th>Localização</th><th>Tipo</th>
+                  <th>Visita</th><th>Financeiro</th><th>Honorário</th><th>Actualizado</th>
                 </tr>
               </thead>
               <tbody>
-                {data?.recent.map((p: Property) => (
+                {data?.recent.map((p: any) => (
                   <tr key={p.id}>
                     <td>
                       <Link to={`/properties/${p.id}`} className="text-brand-600 hover:underline font-medium">

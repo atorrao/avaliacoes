@@ -4,10 +4,16 @@ import { supabase } from '@/lib/supabase'
 import { PageHeader, EmptyState } from '@/components/ui'
 import { Plus, Pencil, Trash2, ChevronRight } from 'lucide-react'
 import toast from 'react-hot-toast'
-import type { Client } from '@/types/database'
 
-function useClients() {
-  return useQuery({
+interface FormState {
+  name: string; nif: string; email: string
+  phone: string; address: string; notes: string
+}
+const empty: FormState = { name: '', nif: '', email: '', phone: '', address: '', notes: '' }
+
+export default function Clients() {
+  const qc = useQueryClient()
+  const { data: clients = [], isLoading } = useQuery({
     queryKey: ['clients'],
     queryFn: async () => {
       const { data, error } = await supabase
@@ -15,20 +21,13 @@ function useClients() {
         .select('*, client_templates(count), portfolios(count)')
         .order('name')
       if (error) throw error
-      return data ?? []
+      return (data ?? []) as any[]
     }
   })
-}
 
-interface FormState { name: string; nif: string; email: string; phone: string; address: string; notes: string }
-const empty: FormState = { name: '', nif: '', email: '', phone: '', address: '', notes: '' }
-
-export default function Clients() {
-  const qc = useQueryClient()
-  const { data: clients = [], isLoading } = useClients()
-  const [modal, setModal] = useState<'create' | 'edit' | null>(null)
-  const [editing, setEditing] = useState<Client | null>(null)
-  const [form, setForm] = useState<FormState>(empty)
+  const [modal, setModal]   = useState<'create' | 'edit' | null>(null)
+  const [editing, setEditing] = useState<any>(null)
+  const [form, setForm]     = useState<FormState>(empty)
 
   const upsert = useMutation({
     mutationFn: async (f: FormState) => {
@@ -43,11 +42,9 @@ export default function Clients() {
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['clients'] })
       toast.success(editing ? 'Cliente actualizado' : 'Cliente criado')
-      setModal(null)
-      setEditing(null)
-      setForm(empty)
+      setModal(null); setEditing(null); setForm(empty)
     },
-    onError: (e: Error) => toast.error(e.message)
+    onError: (e: any) => toast.error(e.message)
   })
 
   const del = useMutation({
@@ -55,19 +52,25 @@ export default function Clients() {
       const { error } = await supabase.from('clients').delete().eq('id', id)
       if (error) throw error
     },
-    onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ['clients'] })
-      toast.success('Cliente eliminado')
-    },
-    onError: (e: Error) => toast.error(e.message)
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ['clients'] }); toast.success('Cliente eliminado') },
+    onError: (e: any) => toast.error(e.message)
   })
 
   function openCreate() { setEditing(null); setForm(empty); setModal('create') }
-  function openEdit(c: Client) {
+  function openEdit(c: any) {
     setEditing(c)
     setForm({ name: c.name, nif: c.nif ?? '', email: c.email ?? '', phone: c.phone ?? '', address: c.address ?? '', notes: c.notes ?? '' })
     setModal('edit')
   }
+
+  const fields: [keyof FormState, string, string][] = [
+    ['name',    'Nome *',         'text' ],
+    ['nif',     'NIF',            'text' ],
+    ['email',   'Email',          'email'],
+    ['phone',   'Telefone',       'text' ],
+    ['address', 'Morada',         'text' ],
+    ['notes',   'Notas internas', 'text' ],
+  ]
 
   return (
     <div>
@@ -100,18 +103,14 @@ export default function Clients() {
                     <button
                       className="btn p-1.5 text-red-500 hover:bg-red-50"
                       onClick={() => { if (confirm('Eliminar cliente?')) del.mutate(c.id) }}
-                    >
-                      <Trash2 size={13} />
-                    </button>
+                    ><Trash2 size={13} /></button>
                   </div>
                 </div>
-
                 <div className="text-xs text-gray-500 space-y-0.5">
                   {c.email   && <p>{c.email}</p>}
                   {c.phone   && <p>{c.phone}</p>}
                   {c.address && <p>{c.address}</p>}
                 </div>
-
                 <div className="flex gap-3 mt-auto pt-2 border-t border-gray-50 text-xs text-gray-400">
                   <span>{c.portfolios?.[0]?.count ?? 0} portfólios</span>
                   <span>{c.client_templates?.[0]?.count ?? 0} templates</span>
@@ -125,20 +124,12 @@ export default function Clients() {
         )}
       </div>
 
-      {/* Modal */}
       {modal && (
         <div className="fixed inset-0 bg-black/30 flex items-center justify-center z-50 p-4">
           <div className="bg-white rounded-xl shadow-xl w-full max-w-md p-6">
             <h2 className="text-base font-semibold mb-5">{editing ? 'Editar cliente' : 'Novo cliente'}</h2>
             <div className="space-y-3">
-              {([
-                ['name',    'Nome *',          'text',  true ],
-                ['nif',     'NIF',             'text',  false],
-                ['email',   'Email',           'email', false],
-                ['phone',   'Telefone',        'text',  false],
-                ['address', 'Morada',          'text',  false],
-                ['notes',   'Notas internas',  'text',  false],
-              ] as [keyof FormState, string, string, boolean][]).map(([key, label, type]) => (
+              {fields.map(([key, label, type]) => (
                 <div key={key}>
                   <label className="label">{label}</label>
                   <input

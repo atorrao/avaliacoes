@@ -7,34 +7,20 @@ import { PageHeader } from '@/components/ui'
 import { Upload, FileSpreadsheet, CheckCircle, AlertCircle } from 'lucide-react'
 import toast from 'react-hot-toast'
 
-// Known column name aliases (normalised → canonical field)
 const COLUMN_ALIASES: Record<string, string> = {
-  // ref
   'referencia': 'external_ref', 'ref': 'external_ref', 'id': 'external_ref', 'codigo': 'external_ref',
-  // address
-  'morada': 'address', 'endereco': 'address', 'address': 'address',
-  'rua': 'address',
-  // municipality
+  'morada': 'address', 'endereco': 'address', 'address': 'address', 'rua': 'address',
   'concelho': 'municipality', 'municipio': 'municipality', 'municipality': 'municipality',
-  // district
   'distrito': 'district', 'district': 'district',
-  // parish
   'freguesia': 'parish', 'parish': 'parish',
-  // postal
   'codigo postal': 'postal_code', 'cp': 'postal_code', 'postal_code': 'postal_code',
-  // type
   'tipo': 'property_type', 'type': 'property_type', 'tipologia imovel': 'property_type',
-  // typology
-  'tipologia': 'typology', 'typology': 'typology', 'fração': 'typology',
-  // areas
-  'area bruta': 'gross_area', 'area_bruta': 'gross_area', 'gross area': 'gross_area',
-  'area util': 'useful_area',  'area_util': 'useful_area',
+  'tipologia': 'typology', 'typology': 'typology',
+  'area bruta': 'gross_area', 'area_bruta': 'gross_area',
+  'area util': 'useful_area', 'area_util': 'useful_area',
   'area terreno': 'land_area',
-  // floor
   'piso': 'floor', 'andar': 'floor', 'floor': 'floor',
-  // year
   'ano construcao': 'year_built', 'ano': 'year_built',
-  // fee
   'honorario': 'fee_amount', 'fee': 'fee_amount', 'valor': 'fee_amount',
 }
 
@@ -51,27 +37,33 @@ function detectMapping(headers: string[]) {
   return map
 }
 
+const PROPERTY_FIELDS = [
+  'external_ref','address','parish','municipality','district','postal_code',
+  'property_type','typology','gross_area','useful_area','land_area','floor','year_built','condition','fee_amount'
+]
+
+const NUMERIC_FIELDS = ['gross_area','useful_area','land_area','floor','year_built','fee_amount']
+
 export default function DataTapeImport() {
   const qc = useQueryClient()
-  const [rows, setRows]       = useState<Record<string, any>[]>([])
-  const [headers, setHeaders] = useState<string[]>([])
-  const [mapping, setMapping] = useState<Record<string, string>>({})
+  const [rows, setRows]         = useState<Record<string, any>[]>([])
+  const [headers, setHeaders]   = useState<string[]>([])
+  const [mapping, setMapping]   = useState<Record<string, string>>({})
   const [fileName, setFileName] = useState('')
   const [portfolioId, setPortfolioId] = useState('')
-  const [step, setStep] = useState<'upload'|'map'|'done'>('upload')
+  const [step, setStep]         = useState<'upload' | 'map' | 'done'>('upload')
 
   const { data: portfolios = [] } = useQuery({
     queryKey: ['portfolios-simple'],
     queryFn: async () => {
-      const { data } = await supabase.from('portfolios').select('id, name, clients(name)').eq('status','active').order('name')
-      return data ?? []
+      const { data } = await supabase
+        .from('portfolios')
+        .select('id, name, clients(name)')
+        .eq('status', 'active')
+        .order('name')
+      return (data ?? []) as any[]
     }
   })
-
-  const PROPERTY_FIELDS = [
-    'external_ref','address','parish','municipality','district','postal_code',
-    'property_type','typology','gross_area','useful_area','land_area','floor','year_built','condition','fee_amount'
-  ]
 
   const onDrop = useCallback((files: File[]) => {
     const file = files[0]
@@ -93,43 +85,49 @@ export default function DataTapeImport() {
   }, [])
 
   const { getRootProps, getInputProps, isDragActive } = useDropzone({
-    onDrop, accept: { 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet': [], 'application/vnd.ms-excel': [] }, maxFiles: 1
+    onDrop,
+    accept: {
+      'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet': [],
+      'application/vnd.ms-excel': []
+    },
+    maxFiles: 1
   })
 
   const importMutation = useMutation({
     mutationFn: async () => {
       if (!portfolioId) throw new Error('Selecciona um portfólio')
 
-      // Build properties array
-      const { data: portfolio } = await supabase.from('portfolios').select('client_id').eq('id', portfolioId).single()
+      const { data: portfolio } = await supabase
+        .from('portfolios')
+        .select('client_id')
+        .eq('id', portfolioId)
+        .single()
 
-      const props = rows.map((row, i) => {
+      if (!portfolio) throw new Error('Portfólio não encontrado')
+
+      const props = rows.map((row: Record<string, any>, i: number) => {
         const p: Record<string, any> = {
-          portfolio_id: portfolioId,
-          client_id:    portfolio!.client_id,
-          ref:          `AV-${String(i + 1).padStart(4, '0')}`,
+          portfolio_id:  portfolioId,
+          client_id:     portfolio.client_id,
+          ref:           `AV-${String(i + 1).padStart(4, '0')}`,
           datatape_data: row,
         }
         for (const [col, field] of Object.entries(mapping)) {
-          if (row[col] !== null && row[col] !== undefined) {
-            const v = row[col]
-            if (['gross_area','useful_area','land_area','floor','year_built','fee_amount'].includes(field)) {
-              p[field] = parseFloat(String(v)) || null
-            } else {
-              p[field] = String(v).trim() || null
-            }
+          const v = row[col]
+          if (v !== null && v !== undefined) {
+            p[field] = NUMERIC_FIELDS.includes(field)
+              ? parseFloat(String(v)) || null
+              : String(v).trim() || null
           }
         }
         return p
       })
 
-      // Batch insert in chunks of 100
       let imported = 0
       for (let i = 0; i < props.length; i += 100) {
-        const chunk = props.slice(i, i + 100)
-        const { error } = await supabase.from('properties').insert(chunk)
+        const { error } = await supabase.from('properties').insert(props.slice(i, i + 100))
         if (error) throw error
-        imported += chunk.length
+        imported += Math.min(100, props.length - i)
       }
 
       await supabase.from('datatape_imports').insert({
@@ -140,14 +138,16 @@ export default function DataTapeImport() {
       })
       return imported
     },
-    onSuccess: (n) => {
+    onSuccess: (n: number) => {
       qc.invalidateQueries({ queryKey: ['properties'] })
       qc.invalidateQueries({ queryKey: ['dashboard-stats'] })
-      toast.success(`${n} imóveis importados com sucesso`)
+      toast.success(`${n} imóveis importados`)
       setStep('done')
     },
-    onError: (e: Error) => toast.error(e.message)
+    onError: (e: any) => toast.error(e.message)
   })
+
+  function reset() { setStep('upload'); setRows([]); setHeaders([]); setMapping({}) }
 
   return (
     <div>
@@ -190,7 +190,9 @@ export default function DataTapeImport() {
             <div className="card">
               <h3 className="text-sm font-semibold text-gray-700 mb-4">
                 Mapeamento de colunas
-                <span className="font-normal text-gray-400 ml-2">({Object.keys(mapping).filter(k => mapping[k]).length} mapeadas automaticamente)</span>
+                <span className="font-normal text-gray-400 ml-2">
+                  ({Object.values(mapping).filter(Boolean).length} mapeadas automaticamente)
+                </span>
               </h3>
               <div className="space-y-2 max-h-80 overflow-y-auto">
                 {headers.map(h => (
@@ -205,20 +207,17 @@ export default function DataTapeImport() {
                       <option value="">(ignorar)</option>
                       {PROPERTY_FIELDS.map(f => <option key={f} value={f}>{f}</option>)}
                     </select>
-                    {mapping[h] ? (
-                      <CheckCircle size={14} className="text-emerald-500 flex-shrink-0" />
-                    ) : (
-                      <AlertCircle size={14} className="text-gray-300 flex-shrink-0" />
-                    )}
+                    {mapping[h]
+                      ? <CheckCircle size={14} className="text-emerald-500 flex-shrink-0" />
+                      : <AlertCircle size={14} className="text-gray-300 flex-shrink-0" />
+                    }
                   </div>
                 ))}
               </div>
             </div>
 
             <div className="flex gap-3">
-              <button className="btn" onClick={() => { setStep('upload'); setRows([]); setHeaders([]); setMapping({}) }}>
-                Cancelar
-              </button>
+              <button className="btn" onClick={reset}>Cancelar</button>
               <button
                 className="btn btn-primary"
                 onClick={() => importMutation.mutate()}
@@ -236,9 +235,7 @@ export default function DataTapeImport() {
             <p className="text-base font-semibold text-gray-900">Importação concluída</p>
             <p className="text-sm text-gray-500 mt-1">{rows.length} imóveis adicionados ao portfólio</p>
             <div className="flex justify-center gap-3 mt-5">
-              <button className="btn" onClick={() => { setStep('upload'); setRows([]); setHeaders([]); setMapping({}) }}>
-                Nova importação
-              </button>
+              <button className="btn" onClick={reset}>Nova importação</button>
               <a href="/properties" className="btn btn-primary">Ver imóveis →</a>
             </div>
           </div>
