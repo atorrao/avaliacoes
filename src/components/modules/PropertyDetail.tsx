@@ -137,7 +137,7 @@ export default function PropertyDetail() {
         L.marker([property.latitude, property.longitude], {
           draggable: true,
           icon: L.divIcon({ className: '', html: `<div style="width:16px;height:16px;border-radius:50%;background:#1D9E75;border:3px solid white;box-shadow:0 2px 6px rgba(0,0,0,.4)"></div>`, iconSize: [16, 16], iconAnchor: [8, 8] })
-        }).addTo(mapInst.current).bindPopup(`<b>${property.ref}</b>`).openPopup()
+        }).addTo(mapInst.current).bindPopup(`<b>${property.external_ref || property.ref}</b>`).openPopup()
       }
     }, 150)
   }, [mapReady, tab, property?.latitude, property?.longitude])
@@ -203,7 +203,7 @@ export default function PropertyDetail() {
         <Link to="/properties" className="text-gray-400 hover:text-gray-700"><ArrowLeft size={18} /></Link>
         <div className="flex-1">
           <div className="flex items-center gap-2 flex-wrap">
-            <h1 className="text-lg font-semibold">{property.ref}</h1>
+            <h1 className="text-lg font-semibold">{property.external_ref || property.ref}</h1>
             <VisitBadge status={property.visit_status} />
             <BillingBadge status={property.billing_status} />
             {property.latitude && <span className="text-xs text-emerald-600 flex items-center gap-1"><MapPin size={11} />Georreferenciado</span>}
