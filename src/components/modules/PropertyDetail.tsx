@@ -4,6 +4,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { supabase } from '@/lib/supabase'
 import { VisitBadge, BillingBadge, VISIT_STATUS_LABELS, BILLING_STATUS_LABELS } from '@/components/ui'
 import { ArrowLeft, Upload, Trash2, FileSpreadsheet, MapPin, Loader2, FileText, ExternalLink, Save, Link as LinkIcon } from 'lucide-react'
+import { generateAbancaReport } from '@/lib/reportGenerator'
 import { useDropzone } from 'react-dropzone'
 import { formatCurrency, formatDate } from '@/lib/utils'
 import { geocodeAddress } from '@/lib/geocode'
@@ -173,33 +174,15 @@ export default function PropertyDetail() {
     if (!property) return
     setGenerating(true)
     try {
-      // Get photo public URLs
+      const templateUrl = import.meta.env.VITE_REPORT_TEMPLATE_URL
+      if (!templateUrl) throw new Error('VITE_REPORT_TEMPLATE_URL não está configurada. Carrega o template para o Supabase Storage e define a variável.')
+
       const photoUrls = photos.map((ph: any) => {
         const { data } = supabase.storage.from('photos').getPublicUrl(ph.storage_path)
         return { ...ph, url: data.publicUrl }
       })
 
-      const payload = {
-        property,
-        photos: photoUrls,
-        comps
-      }
-
-      // Call API to generate report
-      const response = await fetch('/api/generate-report', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload)
-      })
-
-      if (!response.ok) throw new Error('Erro ao gerar relatório')
-      const blob = await response.blob()
-      const url = URL.createObjectURL(blob)
-      const a = document.createElement('a')
-      a.href = url
-      a.download = `Relatorio_${property.ref}_${new Date().toISOString().slice(0,10)}.xlsx`
-      a.click()
-      URL.revokeObjectURL(url)
+      await generateAbancaReport(property, photoUrls, comps, templateUrl)
       toast.success('Relatório gerado com sucesso')
     } catch (e: any) {
       toast.error(e.message)
