@@ -228,12 +228,29 @@ export default function Properties() {
   const bulkDelete = useMutation({
     mutationFn: async () => {
       const ids = [...selected]
-      const { data: photos } = await supabase.from('property_photos').select('storage_path').in('property_id', ids)
-      if (photos?.length) await supabase.storage.from('photos').remove(photos.map((p: any) => p.storage_path))
-      await supabase.from('property_photos').delete().in('property_id', ids)
-      await supabase.from('market_comps').delete().in('property_id', ids)
-      const { error } = await supabase.from('properties').delete().in('id', ids)
-      if (error) throw error
+      const BATCH = 50
+
+      // Process in batches to avoid Supabase request size limits
+      for (let i = 0; i < ids.length; i += BATCH) {
+        const chunk = ids.slice(i, i + BATCH)
+
+        // Get photos for this chunk
+        const { data: photos } = await supabase
+          .from('property_photos').select('storage_path').in('property_id', chunk)
+        if (photos?.length) {
+          // Delete storage files in sub-batches of 20
+          for (let j = 0; j < photos.length; j += 20) {
+            await supabase.storage.from('photos')
+              .remove(photos.slice(j, j+20).map((p: any) => p.storage_path))
+          }
+        }
+
+        await supabase.from('property_photos').delete().in('property_id', chunk)
+        await supabase.from('market_comps').delete().in('property_id', chunk)
+
+        const { error } = await supabase.from('properties').delete().in('id', chunk)
+        if (error) throw error
+      }
     },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey:['properties-all'] })
