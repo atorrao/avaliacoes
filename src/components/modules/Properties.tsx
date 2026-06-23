@@ -10,45 +10,35 @@ import toast from 'react-hot-toast'
 const VISIT_LABELS: Record<string,string>   = { pending:'Por visitar', scheduled:'Agendado', visited:'Visitado', report_done:'Report OK' }
 const BILLING_LABELS: Record<string,string> = { no_po:'Sem PO', awaiting_po:'A aguardar PO', po_received:'PO recebida', invoice_pending:'Fat. por emitir', invoice_issued:'Fat. emitida', paid:'Pago' }
 
-// Multi-select dropdown component
 function MultiSelect({ label, options, selected, onChange }: { label:string; options:string[]; selected:string[]; onChange:(v:string[])=>void }) {
   const [open, setOpen] = useState(false)
   const ref = useRef<HTMLDivElement>(null)
-
   useEffect(() => {
-    function handler(e: MouseEvent) { if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false) }
-    document.addEventListener('mousedown', handler)
-    return () => document.removeEventListener('mousedown', handler)
+    function h(e: MouseEvent) { if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false) }
+    document.addEventListener('mousedown', h); return () => document.removeEventListener('mousedown', h)
   }, [])
-
-  function toggle(v: string) {
-    onChange(selected.includes(v) ? selected.filter(s => s !== v) : [...selected, v])
-  }
-
+  function toggle(v: string) { onChange(selected.includes(v) ? selected.filter(s => s !== v) : [...selected, v]) }
   const display = selected.length === 0 ? label : selected.length === 1 ? selected[0] : `${selected.length} seleccionados`
-
   return (
     <div ref={ref} className="relative">
-      <button className="input text-left flex items-center justify-between gap-2 min-w-[160px]" onClick={() => setOpen(o => !o)}>
+      <button className="input text-left flex items-center justify-between gap-2 min-w-[150px]" onClick={() => setOpen(o => !o)}>
         <span className={`truncate text-sm ${selected.length ? 'text-gray-900' : 'text-gray-400'}`}>{display}</span>
-        <ChevronDown size={13} className="flex-shrink-0 text-gray-400"/>
+        <ChevronDown size={12} className="flex-shrink-0 text-gray-400"/>
       </button>
       {open && (
         <div className="absolute top-full left-0 mt-1 bg-white border border-gray-200 rounded-lg shadow-lg z-50 min-w-[200px] max-h-60 overflow-y-auto">
-          {options.length === 0 ? (
-            <p className="text-xs text-gray-400 px-3 py-2">Sem opções</p>
-          ) : (
-            <>
-              <button className="w-full text-left px-3 py-2 text-xs text-gray-500 hover:bg-gray-50 border-b border-gray-100"
-                onClick={() => onChange([])}>Limpar selecção</button>
-              {options.map(o => (
-                <button key={o} className="w-full text-left px-3 py-2 text-sm hover:bg-gray-50 flex items-center gap-2" onClick={() => toggle(o)}>
-                  {selected.includes(o) ? <CheckSquare size={14} className="text-brand-400"/> : <Square size={14} className="text-gray-300"/>}
-                  {o}
-                </button>
-              ))}
-            </>
-          )}
+          {options.length === 0
+            ? <p className="text-xs text-gray-400 px-3 py-2">Sem opções</p>
+            : <>
+                <button className="w-full text-left px-3 py-2 text-xs text-gray-400 hover:bg-gray-50 border-b border-gray-100" onClick={() => onChange([])}>Limpar selecção</button>
+                {options.map(o => (
+                  <button key={o} className="w-full text-left px-3 py-2 text-sm hover:bg-gray-50 flex items-center gap-2" onClick={() => toggle(o)}>
+                    {selected.includes(o) ? <CheckSquare size={13} className="text-brand-400"/> : <Square size={13} className="text-gray-300"/>}
+                    {o}
+                  </button>
+                ))}
+              </>
+          }
         </div>
       )}
     </div>
@@ -57,24 +47,35 @@ function MultiSelect({ label, options, selected, onChange }: { label:string; opt
 
 export default function Properties() {
   const qc = useQueryClient()
-  const [search,          setSearch]          = useState('')
-  const [visitFilter,     setVisitFilter]     = useState('')
-  const [billingFilter,   setBillingFilter]   = useState('')
-  const [districtFilter,  setDistrictFilter]  = useState<string[]>([])
-  const [parishFilter,    setParishFilter]    = useState<string[]>([])
-  const [peritoFilter,    setPeritoFilter]    = useState('')
-  const [collapsed,       setCollapsed]       = useState<Record<string,boolean>>({})
-  const [selected,        setSelected]        = useState<Set<string>>(new Set())
-  const [bulkVisit,       setBulkVisit]       = useState('')
-  const [bulkBilling,     setBulkBilling]     = useState('')
-  const [showBulk,        setShowBulk]        = useState(false)
+  const [search,         setSearch]         = useState('')
+  const [visitFilter,    setVisitFilter]    = useState('')
+  const [billingFilter,  setBillingFilter]  = useState('')
+  const [districtFilter, setDistrictFilter] = useState<string[]>([])
+  const [parishFilter,   setParishFilter]   = useState<string[]>([])
+  const [peritoFilter,   setPeritoFilter]   = useState('')
+  const [collapsed,      setCollapsed]      = useState<Record<string,boolean>>({})
+  const [selected,       setSelected]       = useState<Set<string>>(new Set())
+  const [bulkVisit,      setBulkVisit]      = useState('')
+  const [bulkBilling,    setBulkBilling]    = useState('')
 
   const { data: rows = [], isLoading } = useQuery({
     queryKey: ['properties-all'],
     queryFn: async () => {
       const { data } = await supabase
         .from('properties')
-        .select('id, ref, address, street, number, municipality, district, parish, postal_code, property_type, typology, area_m2, gross_area, visit_status, billing_status, fee_amount, perito_avaliador, updated_at, portfolios(id, name, clients(name))')
+        .select(`
+          id, ref, external_ref,
+          street, number, block, floor_letter, fracao,
+          address, parish, municipality, district, postal_code,
+          property_type, property_subtype, use_type, use_subtype, property_state,
+          typology, year_built, condition,
+          area_m2, gross_area, useful_area, land_area, area_garage_m2, area_annex_m2,
+          id_registo_predial, id_registo_matricial,
+          perito_avaliador, visit_status, visit_date,
+          billing_status, fee_amount, po_number, invoice_number, payment_date,
+          latitude, longitude, updated_at,
+          portfolios(id, name, clients(name))
+        `)
         .order('portfolio_id').order('ref')
       return (data||[]) as any[]
     }
@@ -85,17 +86,18 @@ export default function Properties() {
     const base = districtFilter.length ? rows.filter((r: any) => districtFilter.includes(r.district)) : rows
     return [...new Set(base.map((r: any) => r.parish).filter(Boolean))].sort()
   }, [rows, districtFilter])
-  const peritos   = useMemo(() => [...new Set(rows.map((r: any) => r.perito_avaliador).filter(Boolean))].sort(), [rows])
+  const peritos = useMemo(() => [...new Set(rows.map((r: any) => r.perito_avaliador).filter(Boolean))].sort(), [rows])
 
   const filtered = useMemo(() => rows.filter((r: any) => {
-    if (visitFilter                           && r.visit_status     !== visitFilter)            return false
-    if (billingFilter                          && r.billing_status   !== billingFilter)           return false
-    if (districtFilter.length                  && !districtFilter.includes(r.district))           return false
-    if (parishFilter.length                    && !parishFilter.includes(r.parish))               return false
-    if (peritoFilter                           && r.perito_avaliador !== peritoFilter)            return false
+    if (visitFilter                 && r.visit_status     !== visitFilter)          return false
+    if (billingFilter               && r.billing_status   !== billingFilter)         return false
+    if (districtFilter.length       && !districtFilter.includes(r.district))         return false
+    if (parishFilter.length         && !parishFilter.includes(r.parish))             return false
+    if (peritoFilter                && r.perito_avaliador !== peritoFilter)           return false
     if (search) {
       const s = search.toLowerCase()
-      return [r.ref, r.address, r.street, r.municipality, r.district, r.parish, r.typology, r.property_type, r.perito_avaliador]
+      return [r.ref, r.external_ref, r.address, r.street, r.municipality, r.district,
+              r.parish, r.typology, r.property_type, r.perito_avaliador, r.postal_code]
         .some(v => v?.toLowerCase().includes(s))
     }
     return true
@@ -105,29 +107,26 @@ export default function Properties() {
     const map: Record<string,{portfolio:any;items:any[]}> = {}
     filtered.forEach((r: any) => {
       const pid = r.portfolios?.id || 'sem-portfolio'
-      if (!map[pid]) map[pid] = { portfolio: r.portfolios, items:[] }
+      if (!map[pid]) map[pid] = { portfolio: r.portfolios, items: [] }
       map[pid].items.push(r)
     })
     return Object.entries(map)
   }, [filtered])
 
   function toggleGroup(pid: string) { setCollapsed(prev => ({...prev, [pid]: !prev[pid]})) }
-
-  // Selection
   function toggleSelect(id: string) {
     setSelected(prev => { const n = new Set(prev); n.has(id) ? n.delete(id) : n.add(id); return n })
+  }
+  function selectGroup(items: any[]) {
+    const ids = items.map((i: any) => i.id)
+    const allSel = ids.every(id => selected.has(id))
+    setSelected(prev => { const n = new Set(prev); allSel ? ids.forEach(id => n.delete(id)) : ids.forEach(id => n.add(id)); return n })
   }
   function selectAll() {
     const allIds = filtered.map((r: any) => r.id)
     setSelected(prev => prev.size === allIds.length ? new Set() : new Set(allIds))
   }
-  function selectGroup(items: any[]) {
-    const ids = items.map((i: any) => i.id)
-    const allSelected = ids.every(id => selected.has(id))
-    setSelected(prev => { const n = new Set(prev); allSelected ? ids.forEach(id => n.delete(id)) : ids.forEach(id => n.add(id)); return n })
-  }
 
-  // Bulk update
   const bulkUpdate = useMutation({
     mutationFn: async ({ field, value }: { field:string; value:string }) => {
       const ids = [...selected]
@@ -136,15 +135,10 @@ export default function Properties() {
         if (error) throw error
       }
     },
-    onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ['properties-all'] })
-      toast.success(`${selected.size} imóveis actualizados`)
-      setSelected(new Set()); setBulkVisit(''); setBulkBilling('')
-    },
+    onSuccess: () => { qc.invalidateQueries({ queryKey:['properties-all'] }); toast.success(`${selected.size} actualizados`); setSelected(new Set()); setBulkVisit(''); setBulkBilling('') },
     onError: (e: any) => toast.error(e.message)
   })
 
-  // Bulk delete
   const bulkDelete = useMutation({
     mutationFn: async () => {
       const ids = [...selected]
@@ -155,11 +149,7 @@ export default function Properties() {
       const { error } = await supabase.from('properties').delete().in('id', ids)
       if (error) throw error
     },
-    onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ['properties-all'] })
-      toast.success(`${selected.size} imóveis eliminados`)
-      setSelected(new Set())
-    },
+    onSuccess: () => { qc.invalidateQueries({ queryKey:['properties-all'] }); toast.success(`${selected.size} eliminados`); setSelected(new Set()) },
     onError: (e: any) => toast.error(e.message)
   })
 
@@ -167,16 +157,14 @@ export default function Properties() {
 
   return (
     <div>
-      <PageHeader title="Imóveis" subtitle={`${filtered.length} de ${rows.length} registos`}
-        actions={<Link to="/import" className="btn btn-primary">Importar data-tape</Link>}
-      />
+      <PageHeader title="Imóveis" subtitle={`${filtered.length} de ${rows.length} registos`}/>
 
       {/* Filters */}
       <div className="bg-white border-b border-gray-100 px-6 py-3 flex flex-wrap gap-2 items-center">
         <input className="input max-w-[180px]" placeholder="Ref, morada, perito…" value={search} onChange={e => setSearch(e.target.value)}/>
-        <MultiSelect label="Distrito" options={districts} selected={districtFilter} onChange={v => { setDistrictFilter(v); setParishFilter([]) }}/>
-        <MultiSelect label="Freguesia" options={parishes} selected={parishFilter} onChange={setParishFilter}/>
-        <select className="input max-w-[160px]" value={peritoFilter} onChange={e => setPeritoFilter(e.target.value)}>
+        <MultiSelect label="Distrito"   options={districts} selected={districtFilter} onChange={v => { setDistrictFilter(v); setParishFilter([]) }}/>
+        <MultiSelect label="Freguesia"  options={parishes}  selected={parishFilter}   onChange={setParishFilter}/>
+        <select className="input max-w-[150px]" value={peritoFilter} onChange={e => setPeritoFilter(e.target.value)}>
           <option value="">Todos os peritos</option>
           {peritos.map(p => <option key={p}>{p}</option>)}
         </select>
@@ -188,14 +176,10 @@ export default function Properties() {
           <option value="">Estado financeiro</option>
           {Object.entries(BILLING_LABELS).map(([k,v]) => <option key={k} value={k}>{v}</option>)}
         </select>
-        {hasFilters && (
-          <button className="btn text-xs" onClick={() => { setSearch(''); setDistrictFilter([]); setParishFilter([]); setPeritoFilter(''); setVisitFilter(''); setBillingFilter('') }}>
-            Limpar
-          </button>
-        )}
+        {hasFilters && <button className="btn text-xs" onClick={() => { setSearch(''); setDistrictFilter([]); setParishFilter([]); setPeritoFilter(''); setVisitFilter(''); setBillingFilter('') }}>Limpar</button>}
       </div>
 
-      {/* Bulk actions bar */}
+      {/* Bulk actions */}
       {selected.size > 0 && (
         <div className="bg-brand-50 border-b border-brand-100 px-6 py-2.5 flex items-center gap-3 flex-wrap">
           <span className="text-sm font-medium text-brand-700">{selected.size} seleccionados</span>
@@ -204,26 +188,18 @@ export default function Properties() {
               <option value="">Alterar estado visita…</option>
               {Object.entries(VISIT_LABELS).map(([k,v]) => <option key={k} value={k}>{v}</option>)}
             </select>
-            {bulkVisit && (
-              <button className="btn btn-primary text-xs py-1" onClick={() => bulkUpdate.mutate({ field:'visit_status', value:bulkVisit })}>
-                Aplicar
-              </button>
-            )}
+            {bulkVisit && <button className="btn btn-primary text-xs py-1" onClick={() => bulkUpdate.mutate({ field:'visit_status', value:bulkVisit })}>Aplicar</button>}
           </div>
           <div className="flex items-center gap-2">
             <select className="input text-xs py-1 max-w-[160px]" value={bulkBilling} onChange={e => setBulkBilling(e.target.value)}>
-              <option value="">Alterar estado faturação…</option>
+              <option value="">Alterar faturação…</option>
               {Object.entries(BILLING_LABELS).map(([k,v]) => <option key={k} value={k}>{v}</option>)}
             </select>
-            {bulkBilling && (
-              <button className="btn btn-primary text-xs py-1" onClick={() => bulkUpdate.mutate({ field:'billing_status', value:bulkBilling })}>
-                Aplicar
-              </button>
-            )}
+            {bulkBilling && <button className="btn btn-primary text-xs py-1" onClick={() => bulkUpdate.mutate({ field:'billing_status', value:bulkBilling })}>Aplicar</button>}
           </div>
           <button className="btn text-xs text-red-500 hover:bg-red-50 border-red-200 ml-auto"
             onClick={() => { if (confirm(`Eliminar ${selected.size} imóveis?`)) bulkDelete.mutate() }}>
-            <Trash2 size={12}/> Eliminar seleccionados
+            <Trash2 size={12}/> Eliminar
           </button>
           <button className="btn text-xs" onClick={() => setSelected(new Set())}>Cancelar</button>
         </div>
@@ -233,57 +209,127 @@ export default function Properties() {
         {isLoading ? <p className="text-sm text-gray-400">A carregar…</p>
           : grouped.length === 0 ? <EmptyState message="Nenhum imóvel encontrado."/>
           : grouped.map(([pid, { portfolio, items }]) => {
-            const isOpen = !collapsed[pid]
-            const label  = portfolio ? `${portfolio.name}${portfolio.clients?.name ? ` — ${portfolio.clients.name}` : ''}` : 'Sem portfólio'
-            const groupAllSelected = items.every((i: any) => selected.has(i.id))
+            const isOpen    = !collapsed[pid]
+            const label     = portfolio ? `${portfolio.name}${portfolio.clients?.name ? ` — ${portfolio.clients.name}` : ''}` : 'Sem portfólio'
+            const groupAllSel = items.every((i: any) => selected.has(i.id))
 
             return (
-              <div key={pid} className="card overflow-hidden p-0">
-                <div className="flex items-center px-4 py-3 bg-gray-50 border-b border-gray-100 gap-2">
+              <div key={pid} className="rounded-xl border border-gray-200 overflow-hidden">
+                {/* Group header */}
+                <div className="flex items-center px-4 py-3 bg-gray-50 border-b border-gray-200 gap-2">
                   <button onClick={() => selectGroup(items)} className="text-gray-400 hover:text-brand-500 flex-shrink-0">
-                    {groupAllSelected ? <CheckSquare size={15} className="text-brand-400"/> : <Square size={15}/>}
+                    {groupAllSel ? <CheckSquare size={14} className="text-brand-400"/> : <Square size={14}/>}
                   </button>
-                  <button className="flex items-center gap-2 flex-1" onClick={() => toggleGroup(pid)}>
-                    {isOpen ? <ChevronDown size={15} className="text-gray-400"/> : <ChevronRight size={15} className="text-gray-400"/>}
+                  <button className="flex items-center gap-2 flex-1 text-left" onClick={() => toggleGroup(pid)}>
+                    {isOpen ? <ChevronDown size={14} className="text-gray-400"/> : <ChevronRight size={14} className="text-gray-400"/>}
                     <span className="text-sm font-semibold text-gray-700">Data Tape + {label}</span>
-                    <span className="badge badge-gray">{items.length}</span>
+                    <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-600 border border-gray-200">{items.length}</span>
                   </button>
                 </div>
 
+                {/* Table — full scroll horizontal */}
                 {isOpen && (
                   <div className="overflow-x-auto">
-                    <table className="table-base">
+                    <table className="w-full text-xs text-left border-collapse" style={{ minWidth: '2400px' }}>
                       <thead>
-                        <tr>
-                          <th className="w-8">
+                        <tr className="bg-gray-50 border-b border-gray-200">
+                          <th className="sticky left-0 bg-gray-50 px-3 py-2 w-8 z-10">
                             <button onClick={selectAll} className="text-gray-400 hover:text-brand-500">
-                              {selected.size === filtered.length && filtered.length > 0 ? <CheckSquare size={14} className="text-brand-400"/> : <Square size={14}/>}
+                              {selected.size === filtered.length && filtered.length > 0 ? <CheckSquare size={13} className="text-brand-400"/> : <Square size={13}/>}
                             </button>
                           </th>
-                          <th>Ref.</th><th>Morada</th><th>Distrito</th><th>Freguesia</th>
-                          <th>Tipo</th><th>Tipologia</th><th>Área</th>
-                          <th>Perito</th><th>Visita</th><th>Financeiro</th><th>Honorário</th>
+                          {/* Identificação */}
+                          <th className="sticky left-8 bg-gray-50 px-3 py-2 font-semibold text-gray-600 whitespace-nowrap z-10 min-w-[90px]">Ref.</th>
+                          <th className="px-3 py-2 font-semibold text-gray-600 whitespace-nowrap min-w-[110px]">Ref. externa</th>
+                          <th className="px-3 py-2 font-semibold text-gray-600 whitespace-nowrap min-w-[80px]">Reg. Predial</th>
+                          <th className="px-3 py-2 font-semibold text-gray-600 whitespace-nowrap min-w-[80px]">Reg. Matricial</th>
+                          <th className="px-3 py-2 font-semibold text-gray-600 whitespace-nowrap min-w-[70px]">Fracção</th>
+                          {/* Localização */}
+                          <th className="px-3 py-2 font-semibold text-gray-600 whitespace-nowrap min-w-[160px]">Rua</th>
+                          <th className="px-3 py-2 font-semibold text-gray-600 whitespace-nowrap min-w-[50px]">Nº</th>
+                          <th className="px-3 py-2 font-semibold text-gray-600 whitespace-nowrap min-w-[60px]">Bloco</th>
+                          <th className="px-3 py-2 font-semibold text-gray-600 whitespace-nowrap min-w-[50px]">Piso/Letra</th>
+                          <th className="px-3 py-2 font-semibold text-gray-600 whitespace-nowrap min-w-[90px]">Cód. Postal</th>
+                          <th className="px-3 py-2 font-semibold text-gray-600 whitespace-nowrap min-w-[100px]">Freguesia</th>
+                          <th className="px-3 py-2 font-semibold text-gray-600 whitespace-nowrap min-w-[100px]">Concelho</th>
+                          <th className="px-3 py-2 font-semibold text-gray-600 whitespace-nowrap min-w-[100px]">Distrito</th>
+                          {/* Tipo */}
+                          <th className="px-3 py-2 font-semibold text-gray-600 whitespace-nowrap min-w-[110px]">Tipo de Bem</th>
+                          <th className="px-3 py-2 font-semibold text-gray-600 whitespace-nowrap min-w-[110px]">Subtipo</th>
+                          <th className="px-3 py-2 font-semibold text-gray-600 whitespace-nowrap min-w-[90px]">Uso</th>
+                          <th className="px-3 py-2 font-semibold text-gray-600 whitespace-nowrap min-w-[90px]">Subuso</th>
+                          <th className="px-3 py-2 font-semibold text-gray-600 whitespace-nowrap min-w-[90px]">Estado</th>
+                          <th className="px-3 py-2 font-semibold text-gray-600 whitespace-nowrap min-w-[80px]">Tipologia</th>
+                          <th className="px-3 py-2 font-semibold text-gray-600 whitespace-nowrap min-w-[80px]">Ano Const.</th>
+                          {/* Áreas */}
+                          <th className="px-3 py-2 font-semibold text-gray-600 whitespace-nowrap min-w-[80px]">m² (col.N)</th>
+                          <th className="px-3 py-2 font-semibold text-gray-600 whitespace-nowrap min-w-[80px]">m² Garagem</th>
+                          <th className="px-3 py-2 font-semibold text-gray-600 whitespace-nowrap min-w-[80px]">m² Anexo</th>
+                          <th className="px-3 py-2 font-semibold text-gray-600 whitespace-nowrap min-w-[80px]">Área bruta</th>
+                          <th className="px-3 py-2 font-semibold text-gray-600 whitespace-nowrap min-w-[80px]">Área útil</th>
+                          <th className="px-3 py-2 font-semibold text-gray-600 whitespace-nowrap min-w-[80px]">Terreno</th>
+                          {/* Responsável */}
+                          <th className="px-3 py-2 font-semibold text-gray-600 whitespace-nowrap min-w-[130px]">Perito Avaliador</th>
+                          {/* Estados */}
+                          <th className="px-3 py-2 font-semibold text-gray-600 whitespace-nowrap min-w-[110px]">Estado visita</th>
+                          <th className="px-3 py-2 font-semibold text-gray-600 whitespace-nowrap min-w-[90px]">Data visita</th>
+                          {/* Faturação */}
+                          <th className="px-3 py-2 font-semibold text-gray-600 whitespace-nowrap min-w-[110px]">Est. faturação</th>
+                          <th className="px-3 py-2 font-semibold text-gray-600 whitespace-nowrap min-w-[100px]">Honorário</th>
+                          <th className="px-3 py-2 font-semibold text-gray-600 whitespace-nowrap min-w-[90px]">Nº PO</th>
+                          <th className="px-3 py-2 font-semibold text-gray-600 whitespace-nowrap min-w-[90px]">Nº Fatura</th>
+                          <th className="px-3 py-2 font-semibold text-gray-600 whitespace-nowrap min-w-[90px]">Dt. Pagamento</th>
+                          {/* Geo */}
+                          <th className="px-3 py-2 font-semibold text-gray-600 whitespace-nowrap min-w-[60px]">Geo</th>
                         </tr>
                       </thead>
                       <tbody>
-                        {items.map((p: any) => (
-                          <tr key={p.id} className={selected.has(p.id) ? 'bg-brand-50' : ''}>
-                            <td>
+                        {items.map((p: any, idx: number) => (
+                          <tr key={p.id} className={`border-b border-gray-100 hover:bg-gray-50 ${selected.has(p.id) ? 'bg-brand-50' : idx%2===0 ? 'bg-white' : 'bg-gray-50/40'}`}>
+                            <td className="sticky left-0 px-3 py-2 bg-inherit z-10">
                               <button onClick={() => toggleSelect(p.id)} className="text-gray-400 hover:text-brand-500">
-                                {selected.has(p.id) ? <CheckSquare size={14} className="text-brand-400"/> : <Square size={14}/>}
+                                {selected.has(p.id) ? <CheckSquare size={13} className="text-brand-400"/> : <Square size={13}/>}
                               </button>
                             </td>
-                            <td><Link to={`/properties/${p.id}`} className="text-brand-600 hover:underline font-medium">{p.ref}</Link></td>
-                            <td className="text-gray-600 max-w-[160px] truncate">{[p.street, p.number, p.municipality].filter(Boolean).join(', ') || p.address || '—'}</td>
-                            <td className="text-gray-600">{p.district||'—'}</td>
-                            <td className="text-gray-600">{p.parish||'—'}</td>
-                            <td className="text-gray-600">{p.property_type||'—'}</td>
-                            <td className="text-gray-600">{p.typology||'—'}</td>
-                            <td className="text-gray-600">{p.area_m2||p.gross_area||'—'}</td>
-                            <td className="text-gray-500 text-xs max-w-[90px] truncate">{p.perito_avaliador||'—'}</td>
-                            <td><VisitBadge status={p.visit_status}/></td>
-                            <td><BillingBadge status={p.billing_status}/></td>
-                            <td className="text-gray-600">{p.fee_amount ? formatCurrency(p.fee_amount) : '—'}</td>
+                            <td className="sticky left-8 px-3 py-2 bg-inherit z-10">
+                              <Link to={`/properties/${p.id}`} className="text-brand-600 hover:underline font-semibold whitespace-nowrap">{p.ref}</Link>
+                            </td>
+                            <td className="px-3 py-2 text-gray-600 whitespace-nowrap">{p.external_ref||'—'}</td>
+                            <td className="px-3 py-2 text-gray-600 whitespace-nowrap">{p.id_registo_predial||'—'}</td>
+                            <td className="px-3 py-2 text-gray-600 whitespace-nowrap">{p.id_registo_matricial||'—'}</td>
+                            <td className="px-3 py-2 text-gray-600 whitespace-nowrap">{p.fracao||'—'}</td>
+                            <td className="px-3 py-2 text-gray-600 whitespace-nowrap max-w-[160px] truncate">{p.street||p.address||'—'}</td>
+                            <td className="px-3 py-2 text-gray-600 whitespace-nowrap">{p.number||'—'}</td>
+                            <td className="px-3 py-2 text-gray-600 whitespace-nowrap">{p.block||'—'}</td>
+                            <td className="px-3 py-2 text-gray-600 whitespace-nowrap">{p.floor_letter||'—'}</td>
+                            <td className="px-3 py-2 text-gray-600 whitespace-nowrap">{p.postal_code||'—'}</td>
+                            <td className="px-3 py-2 text-gray-600 whitespace-nowrap">{p.parish||'—'}</td>
+                            <td className="px-3 py-2 text-gray-600 whitespace-nowrap">{p.municipality||'—'}</td>
+                            <td className="px-3 py-2 text-gray-600 whitespace-nowrap">{p.district||'—'}</td>
+                            <td className="px-3 py-2 text-gray-600 whitespace-nowrap">{p.property_type||'—'}</td>
+                            <td className="px-3 py-2 text-gray-600 whitespace-nowrap">{p.property_subtype||'—'}</td>
+                            <td className="px-3 py-2 text-gray-600 whitespace-nowrap">{p.use_type||'—'}</td>
+                            <td className="px-3 py-2 text-gray-600 whitespace-nowrap">{p.use_subtype||'—'}</td>
+                            <td className="px-3 py-2 text-gray-600 whitespace-nowrap">{p.property_state||'—'}</td>
+                            <td className="px-3 py-2 text-gray-600 whitespace-nowrap">{p.typology||'—'}</td>
+                            <td className="px-3 py-2 text-gray-600 whitespace-nowrap">{p.year_built||'—'}</td>
+                            <td className="px-3 py-2 text-gray-600 whitespace-nowrap">{p.area_m2 ? `${p.area_m2} m²` : '—'}</td>
+                            <td className="px-3 py-2 text-gray-600 whitespace-nowrap">{p.area_garage_m2 ? `${p.area_garage_m2} m²` : '—'}</td>
+                            <td className="px-3 py-2 text-gray-600 whitespace-nowrap">{p.area_annex_m2 ? `${p.area_annex_m2} m²` : '—'}</td>
+                            <td className="px-3 py-2 text-gray-600 whitespace-nowrap">{p.gross_area ? `${p.gross_area} m²` : '—'}</td>
+                            <td className="px-3 py-2 text-gray-600 whitespace-nowrap">{p.useful_area ? `${p.useful_area} m²` : '—'}</td>
+                            <td className="px-3 py-2 text-gray-600 whitespace-nowrap">{p.land_area ? `${p.land_area} m²` : '—'}</td>
+                            <td className="px-3 py-2 text-gray-500 whitespace-nowrap">{p.perito_avaliador||'—'}</td>
+                            <td className="px-3 py-2 whitespace-nowrap"><VisitBadge status={p.visit_status}/></td>
+                            <td className="px-3 py-2 text-gray-500 whitespace-nowrap">{p.visit_date||'—'}</td>
+                            <td className="px-3 py-2 whitespace-nowrap"><BillingBadge status={p.billing_status}/></td>
+                            <td className="px-3 py-2 whitespace-nowrap font-medium text-gray-800">{p.fee_amount ? formatCurrency(p.fee_amount) : '—'}</td>
+                            <td className="px-3 py-2 text-gray-500 whitespace-nowrap">{p.po_number||'—'}</td>
+                            <td className="px-3 py-2 text-gray-500 whitespace-nowrap">{p.invoice_number||'—'}</td>
+                            <td className="px-3 py-2 text-gray-500 whitespace-nowrap">{p.payment_date||'—'}</td>
+                            <td className="px-3 py-2 whitespace-nowrap">
+                              {p.latitude ? <span className="text-emerald-500 text-xs">✓</span> : <span className="text-gray-300 text-xs">—</span>}
+                            </td>
                           </tr>
                         ))}
                       </tbody>
