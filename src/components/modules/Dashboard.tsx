@@ -5,167 +5,193 @@ import { PageHeader, KpiCard, VisitBadge, BillingBadge } from '@/components/ui'
 import { formatCurrency, formatDate } from '@/lib/utils'
 import { Link } from 'react-router-dom'
 import { useAuth } from '@/lib/AuthContext'
-import { Check, X, ChevronDown, Camera, GitCompare, CheckCircle2, Circle } from 'lucide-react'
+import { CheckSquare, Square, Pencil, Check, X, ChevronDown, Trash2 } from 'lucide-react'
 import toast from 'react-hot-toast'
 
-const VISIT_OPTIONS = [
-  { value: 'pending',     label: 'Por visitar' },
-  { value: 'scheduled',   label: 'Agendado' },
-  { value: 'visited',     label: 'Visitado' },
-  { value: 'report_done', label: 'Report OK' },
-]
+const VISIT_LABELS: Record<string,string>   = { pending:'Por visitar', scheduled:'Agendado', visited:'Visitado', report_done:'Report OK' }
+const BILLING_LABELS: Record<string,string> = { no_po:'Sem PO', awaiting_po:'A aguardar PO', po_received:'PO recebida', invoice_pending:'Fat. por emitir', invoice_issued:'Fat. emitida', paid:'Pago' }
 
-// Inline select for visit status
-function InlineVisitSelect({ id, value, onSaved }: { id: string; value: string | null; onSaved: () => void }) {
+// ── Inline edit de texto (perito) ──────────────────────────────────────────
+function InlineEdit({ value, onSave }: { value: string|null; onSave: (v: string) => void }) {
   const [editing, setEditing] = useState(false)
-  const [val, setVal] = useState(value || 'pending')
-  const qc = useQueryClient()
+  const [val, setVal]         = useState(value || '')
+  if (!editing) return (
+    <div className="flex items-center gap-1 group cursor-pointer whitespace-nowrap" onClick={() => setEditing(true)}>
+      <span className={value ? 'text-gray-600' : 'text-gray-300'}>{value || '—'}</span>
+      <Pencil size={10} className="opacity-0 group-hover:opacity-100 text-gray-400 flex-shrink-0"/>
+    </div>
+  )
+  return (
+    <div className="flex items-center gap-1" onClick={e => e.stopPropagation()}>
+      <input className="border border-brand-300 rounded px-1 py-0.5 text-xs w-28 focus:outline-none focus:ring-1 focus:ring-brand-400"
+        value={val} onChange={e => setVal(e.target.value)} autoFocus
+        onKeyDown={e => { if (e.key==='Enter') { onSave(val); setEditing(false) } if (e.key==='Escape') setEditing(false) }}/>
+      <button onClick={() => { onSave(val); setEditing(false) }} className="text-emerald-500"><Check size={12}/></button>
+      <button onClick={() => { setVal(value||''); setEditing(false) }} className="text-gray-400"><X size={12}/></button>
+    </div>
+  )
+}
 
-  async function save(newVal: string) {
-    setVal(newVal)
-    setEditing(false)
-    const { error } = await supabase.from('properties').update({ visit_status: newVal }).eq('id', id)
-    if (error) { toast.error('Erro ao guardar'); return }
-    qc.invalidateQueries({ queryKey: ['dashboard-props'] })
-    onSaved()
-  }
-
+// ── Inline select (visita) ─────────────────────────────────────────────────
+function InlineVisitSelect({ id, value, onChange }: { id: string; value: string|null; onChange: (id:string, v:string) => void }) {
+  const [editing, setEditing] = useState(false)
   if (!editing) return (
     <div className="cursor-pointer" onClick={() => setEditing(true)}>
       <VisitBadge status={value} />
     </div>
   )
-
   return (
-    <select
-      autoFocus
-      className="text-xs border border-brand-300 rounded px-1 py-0.5 focus:outline-none"
-      value={val}
-      onChange={e => save(e.target.value)}
-      onBlur={() => setEditing(false)}
-    >
-      {VISIT_OPTIONS.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
+    <select autoFocus className="text-xs border border-brand-300 rounded px-1 py-0.5 focus:outline-none"
+      value={value || 'pending'}
+      onChange={e => { onChange(id, e.target.value); setEditing(false) }}
+      onBlur={() => setEditing(false)}>
+      {Object.entries(VISIT_LABELS).map(([k,v]) => <option key={k} value={k}>{v}</option>)}
     </select>
   )
 }
 
-// Inline toggle for boolean fields (fotos, comparáveis, verificado)
-function InlineToggle({
-  id, field, value, onSaved, trueLabel, falseLabel, trueColor
-}: {
-  id: string; field: string; value: boolean; onSaved: () => void
-  trueLabel: string; falseLabel: string; trueColor: string
-}) {
-  const [loading, setLoading] = useState(false)
-  const qc = useQueryClient()
-
-  async function toggle() {
-    setLoading(true)
-    const { error } = await supabase.from('properties').update({ [field]: !value }).eq('id', id)
-    setLoading(false)
-    if (error) { toast.error('Erro ao guardar'); return }
-    qc.invalidateQueries({ queryKey: ['dashboard-props'] })
-    onSaved()
-  }
-
+// ── Inline boolean toggle (fotos, comparáveis, verificado) ─────────────────
+function BoolBadge({ value, trueLabel, falseLabel, color, onClick }:
+  { value: boolean; trueLabel: string; falseLabel: string; color: string; onClick: () => void }) {
   return (
-    <button
-      onClick={toggle}
-      disabled={loading}
-      title={value ? `Marcar como: ${falseLabel}` : `Marcar como: ${trueLabel}`}
-      className={`flex items-center gap-1 text-xs font-medium px-2 py-0.5 rounded-full transition-colors
-        ${value ? trueColor : 'bg-gray-100 text-gray-400 hover:bg-gray-200'}`}
-    >
-      {value ? <CheckCircle2 size={11}/> : <Circle size={11}/>}
-      {value ? trueLabel : falseLabel}
+    <button onClick={onClick}
+      className={`text-xs font-medium px-2 py-0.5 rounded-full transition-colors whitespace-nowrap
+        ${value ? color : 'bg-gray-100 text-gray-400 hover:bg-gray-200'}`}>
+      {value ? `✓ ${trueLabel}` : falseLabel}
     </button>
   )
-}
-
-type FilterState = {
-  search:    string
-  visita:    string
-  comps:     '' | 'sim' | 'nao'
-  fotos:     '' | 'sim' | 'nao'
-  verificado: '' | 'sim' | 'nao'
-  perito:    string
 }
 
 export default function Dashboard() {
   const { role, name } = useAuth()
   const qc = useQueryClient()
-  const [filters, setFilters] = useState<FilterState>({
-    search: '', visita: '', comps: '', fotos: '', verificado: '', perito: ''
-  })
+
+  // Filters
+  const [filterVisita,     setFilterVisita]     = useState('')
+  const [filterFotos,      setFilterFotos]      = useState('')
+  const [filterComps,      setFilterComps]      = useState('')
+  const [filterVerificado, setFilterVerificado] = useState('')
+  const [filterPerito,     setFilterPerito]     = useState('')
+  const [search,           setSearch]           = useState('')
+
+  // Bulk
+  const [selected,       setSelected]       = useState<Set<string>>(new Set())
+  const [bulkVisit,      setBulkVisit]      = useState('')
+  const [bulkBilling,    setBulkBilling]    = useState('')
+  const [bulkPerito,     setBulkPerito]     = useState('')
+  const [showBulkPerito, setShowBulkPerito] = useState(false)
 
   const { data, isLoading } = useQuery({
-    queryKey: ['dashboard-props'],
+    queryKey: ['dashboard-stats', role, name],
     queryFn: async () => {
-      // For perito role, filter by name. Admin sees all.
-      let query = supabase
-        .from('properties')
-        .select(`
-          id, ref, address, street, municipality, district,
-          property_type, typology,
-          visit_status, billing_status, fee_amount,
-          perito_avaliador, updated_at,
-          tem_fotos, tem_comparaveis, verificado,
-          photos:photos(id),
-          market_comps:market_comps(id)
-        `)
+      // Stats query (all properties for KPIs — admin sees all, perito sees own)
+      let statsQ = supabase.from('properties').select('visit_status, billing_status, fee_amount')
+      if (role === 'perito' && name) statsQ = statsQ.eq('perito_avaliador', name)
+
+      // Table query
+      let tableQ = supabase.from('properties')
+        .select('id, ref, address, municipality, property_type, typology, visit_status, billing_status, fee_amount, perito_avaliador, updated_at, tem_fotos, tem_comparaveis, verificado')
         .order('updated_at', { ascending: false })
+      if (role === 'perito' && name) tableQ = tableQ.eq('perito_avaliador', name)
 
-      if (role === 'perito' && name) {
-        query = query.eq('perito_avaliador', name)
-      }
-
-      const { data } = await query
-      return (data || []) as any[]
+      const [statsRes, tableRes] = await Promise.all([statsQ, tableQ])
+      return { properties: statsRes.data || [], recent: tableRes.data || [] }
     }
   })
 
-  const rows = data || []
+  const props  = (data?.properties || []) as any[]
+  const recent = (data?.recent     || []) as any[]
 
-  // KPI counts (all rows, before filter)
-  const total     = rows.length
-  const visited   = rows.filter((p: any) => p.visit_status !== 'pending').length
-  const reportOk  = rows.filter((p: any) => p.visit_status === 'report_done').length
-  const toReceive = rows
-    .filter((p: any) => ['awaiting_po','po_received','invoice_pending','invoice_issued'].includes(p.billing_status))
+  // KPIs
+  const total     = props.length
+  const visited   = props.filter(p => p.visit_status !== 'pending').length
+  const reportOk  = props.filter(p => p.visit_status === 'report_done').length
+  const toReceive = props
+    .filter(p => ['awaiting_po','po_received','invoice_pending','invoice_issued'].includes(p.billing_status))
     .reduce((s: number, p: any) => s + (p.fee_amount || 0), 0)
   const pct = total > 0 ? Math.round((visited / total) * 100) : 0
 
   const peritos = useMemo(() =>
-    [...new Set(rows.map((r: any) => r.perito_avaliador).filter(Boolean))].sort() as string[]
-  , [rows])
+    [...new Set(recent.map((r: any) => r.perito_avaliador).filter(Boolean))].sort() as string[]
+  , [recent])
 
-  const filtered = useMemo(() => rows.filter((p: any) => {
-    if (filters.search) {
-      const s = filters.search.toLowerCase()
-      if (![p.ref, p.address, p.street, p.municipality, p.district, p.property_type, p.perito_avaliador]
-        .some((v: any) => v?.toLowerCase().includes(s))) return false
+  // Filtered table rows
+  const filtered = useMemo(() => recent.filter((p: any) => {
+    if (filterVisita     && p.visit_status !== filterVisita) return false
+    if (filterPerito     && p.perito_avaliador !== filterPerito) return false
+    if (filterFotos      === 'sim' && !p.tem_fotos)      return false
+    if (filterFotos      === 'nao' &&  p.tem_fotos)      return false
+    if (filterComps      === 'sim' && !p.tem_comparaveis) return false
+    if (filterComps      === 'nao' &&  p.tem_comparaveis) return false
+    if (filterVerificado === 'sim' && !p.verificado)      return false
+    if (filterVerificado === 'nao' &&  p.verificado)      return false
+    if (search) {
+      const s = search.toLowerCase()
+      if (![p.ref, p.address, p.municipality, p.property_type, p.perito_avaliador].some((v: any) => v?.toLowerCase().includes(s))) return false
     }
-    if (filters.visita && p.visit_status !== filters.visita) return false
-    if (filters.perito && p.perito_avaliador !== filters.perito) return false
-
-    // Fotos: check tem_fotos flag OR photos array
-    const hasPhotos = p.tem_fotos || (p.photos && p.photos.length > 0)
-    if (filters.fotos === 'sim' && !hasPhotos) return false
-    if (filters.fotos === 'nao' && hasPhotos)  return false
-
-    // Comparáveis: check tem_comparaveis flag OR market_comps array
-    const hasComps = p.tem_comparaveis || (p.market_comps && p.market_comps.length > 0)
-    if (filters.comps === 'sim' && !hasComps) return false
-    if (filters.comps === 'nao' && hasComps)  return false
-
-    // Verificado
-    if (filters.verificado === 'sim' && !p.verificado) return false
-    if (filters.verificado === 'nao' && p.verificado)  return false
-
     return true
-  }), [rows, filters])
+  }), [recent, filterVisita, filterPerito, filterFotos, filterComps, filterVerificado, search])
 
-  function noop() {} // just to trigger re-render via invalidateQueries
+  // ── Mutations ──────────────────────────────────────────────────────────────
+  const updateField = useMutation({
+    mutationFn: async ({ id, field, value }: { id:string; field:string; value:any }) => {
+      const { error } = await supabase.from('properties').update({ [field]: value }).eq('id', id)
+      if (error) throw error
+    },
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['dashboard-stats'] }),
+    onError: (e: any) => toast.error(e.message)
+  })
+
+  const bulkUpdate = useMutation({
+    mutationFn: async ({ field, value }: { field:string; value:any }) => {
+      const ids = [...selected]
+      for (let i = 0; i < ids.length; i += 50) {
+        const { error } = await supabase.from('properties').update({ [field]: value }).in('id', ids.slice(i, i+50))
+        if (error) throw error
+      }
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['dashboard-stats'] })
+      toast.success(`${selected.size} actualizados`)
+      setSelected(new Set()); setBulkVisit(''); setBulkBilling(''); setBulkPerito(''); setShowBulkPerito(false)
+    },
+    onError: (e: any) => toast.error(e.message)
+  })
+
+  const bulkDelete = useMutation({
+    mutationFn: async () => {
+      const ids = [...selected]
+      for (let i = 0; i < ids.length; i += 50) {
+        const chunk = ids.slice(i, i+50)
+        const { data: photos } = await supabase.from('property_photos').select('storage_path').in('property_id', chunk)
+        if (photos?.length) {
+          for (let j = 0; j < photos.length; j += 20)
+            await supabase.storage.from('photos').remove(photos.slice(j,j+20).map((p: any) => p.storage_path))
+        }
+        await supabase.from('property_photos').delete().in('property_id', chunk)
+        await supabase.from('market_comps').delete().in('property_id', chunk)
+        const { error } = await supabase.from('properties').delete().in('id', chunk)
+        if (error) throw error
+      }
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['dashboard-stats'] })
+      toast.success(`${selected.size} imóveis eliminados`)
+      setSelected(new Set())
+    },
+    onError: (e: any) => toast.error(e.message)
+  })
+
+  // ── Selection helpers ──────────────────────────────────────────────────────
+  function toggleSelect(id: string) {
+    setSelected(prev => { const n = new Set(prev); n.has(id) ? n.delete(id) : n.add(id); return n })
+  }
+  function selectAll() {
+    const allIds = filtered.map((r: any) => r.id)
+    setSelected(prev => prev.size === allIds.length ? new Set() : new Set(allIds))
+  }
+
+  const hasFilters = filterVisita || filterFotos || filterComps || filterVerificado || filterPerito || search
 
   return (
     <div>
@@ -191,70 +217,147 @@ export default function Dashboard() {
           </div>
         </div>
 
-        {/* Filters + table */}
+        {/* Main table */}
         <div className="card">
           <div className="flex items-center justify-between mb-4">
             <h2 className="text-sm font-semibold text-gray-800">
-              Imóveis{role === 'perito' ? ' atribuídos' : ''} ({filtered.length})
+              {role === 'perito' ? 'Imóveis atribuídos' : 'Últimos processos'}
+              {' '}<span className="text-gray-400 font-normal">({filtered.length})</span>
             </h2>
             <Link to="/properties" className="text-xs text-brand-600 hover:underline">Gestão completa →</Link>
           </div>
 
           {/* Filter bar */}
-          <div className="flex flex-wrap gap-2 mb-4">
-            <input
-              className="input text-sm"
-              placeholder="Pesquisar ref., morada…"
-              value={filters.search}
-              onChange={e => setFilters(f => ({...f, search: e.target.value}))}
-            />
+          <div className="flex flex-wrap gap-2 mb-3">
+            <input className="input text-sm max-w-[180px]" placeholder="Pesquisar…"
+              value={search} onChange={e => setSearch(e.target.value)} />
 
-            <select className="input text-sm" value={filters.visita} onChange={e => setFilters(f => ({...f, visita: e.target.value}))}>
+            <select className="input text-sm" value={filterVisita} onChange={e => setFilterVisita(e.target.value)}>
               <option value="">Visita: todas</option>
-              {VISIT_OPTIONS.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
+              {Object.entries(VISIT_LABELS).map(([k,v]) => <option key={k} value={k}>{v}</option>)}
             </select>
 
-            <select className="input text-sm" value={filters.fotos} onChange={e => setFilters(f => ({...f, fotos: e.target.value as any}))}>
+            <select className="input text-sm" value={filterFotos} onChange={e => setFilterFotos(e.target.value)}>
               <option value="">Fotos: todas</option>
               <option value="sim">Com fotos</option>
               <option value="nao">Sem fotos</option>
             </select>
 
-            <select className="input text-sm" value={filters.comps} onChange={e => setFilters(f => ({...f, comps: e.target.value as any}))}>
+            <select className="input text-sm" value={filterComps} onChange={e => setFilterComps(e.target.value)}>
               <option value="">Comparáveis: todos</option>
               <option value="sim">Com comparáveis</option>
               <option value="nao">Sem comparáveis</option>
             </select>
 
-            <select className="input text-sm" value={filters.verificado} onChange={e => setFilters(f => ({...f, verificado: e.target.value as any}))}>
+            <select className="input text-sm" value={filterVerificado} onChange={e => setFilterVerificado(e.target.value)}>
               <option value="">Verificado: todos</option>
               <option value="sim">Verificado</option>
               <option value="nao">Por verificar</option>
             </select>
 
             {role === 'admin' && (
-              <select className="input text-sm" value={filters.perito} onChange={e => setFilters(f => ({...f, perito: e.target.value}))}>
+              <select className="input text-sm" value={filterPerito} onChange={e => setFilterPerito(e.target.value)}>
                 <option value="">Todos os peritos</option>
                 {peritos.map(p => <option key={p} value={p}>{p}</option>)}
               </select>
             )}
 
-            {Object.values(filters).some(Boolean) && (
-              <button className="text-xs text-gray-400 hover:text-gray-600 px-2" onClick={() => setFilters({ search:'', visita:'', comps:'', fotos:'', verificado:'', perito:'' })}>
-                Limpar filtros
-              </button>
+            {hasFilters && (
+              <button className="btn text-xs" onClick={() => {
+                setFilterVisita(''); setFilterFotos(''); setFilterComps('')
+                setFilterVerificado(''); setFilterPerito(''); setSearch('')
+              }}>Limpar</button>
             )}
           </div>
 
+          {/* Bulk action bar */}
+          {selected.size > 0 && (
+            <div className="fixed top-0 left-[220px] right-0 z-40 bg-brand-100 border-b border-brand-200 px-6 py-3 flex items-center gap-3 flex-wrap shadow-md">
+              <span className="text-sm font-medium text-brand-700">{selected.size} seleccionados</span>
+
+              <div className="flex items-center gap-1.5">
+                <select className="input text-xs py-1 max-w-[155px]" value={bulkVisit} onChange={e => setBulkVisit(e.target.value)}>
+                  <option value="">Alterar visita…</option>
+                  {Object.entries(VISIT_LABELS).map(([k,v]) => <option key={k} value={k}>{v}</option>)}
+                </select>
+                {bulkVisit && <button className="btn btn-primary text-xs py-1" onClick={() => bulkUpdate.mutate({ field:'visit_status', value:bulkVisit })}>OK</button>}
+              </div>
+
+              <div className="flex items-center gap-1.5">
+                <select className="input text-xs py-1 max-w-[155px]" value={bulkBilling} onChange={e => setBulkBilling(e.target.value)}>
+                  <option value="">Alterar faturação…</option>
+                  {Object.entries(BILLING_LABELS).map(([k,v]) => <option key={k} value={k}>{v}</option>)}
+                </select>
+                {bulkBilling && <button className="btn btn-primary text-xs py-1" onClick={() => bulkUpdate.mutate({ field:'billing_status', value:bulkBilling })}>OK</button>}
+              </div>
+
+              <div className="flex items-center gap-1.5">
+                <select className="input text-xs py-1 max-w-[175px]" onChange={e => {
+                  if (e.target.value) bulkUpdate.mutate({ field:'tem_fotos', value: e.target.value === 'sim' })
+                }}>
+                  <option value="">Alterar fotos…</option>
+                  <option value="sim">Com fotos</option>
+                  <option value="nao">Sem fotos</option>
+                </select>
+              </div>
+
+              <div className="flex items-center gap-1.5">
+                <select className="input text-xs py-1 max-w-[175px]" onChange={e => {
+                  if (e.target.value) bulkUpdate.mutate({ field:'tem_comparaveis', value: e.target.value === 'sim' })
+                }}>
+                  <option value="">Alterar comparáveis…</option>
+                  <option value="sim">Com comparáveis</option>
+                  <option value="nao">Sem comparáveis</option>
+                </select>
+              </div>
+
+              <div className="flex items-center gap-1.5">
+                <select className="input text-xs py-1 max-w-[175px]" onChange={e => {
+                  if (e.target.value) bulkUpdate.mutate({ field:'verificado', value: e.target.value === 'sim' })
+                }}>
+                  <option value="">Alterar verificado…</option>
+                  <option value="sim">Verificado</option>
+                  <option value="nao">Por verificar</option>
+                </select>
+              </div>
+
+              <div className="flex items-center gap-1.5">
+                {!showBulkPerito
+                  ? <button className="btn text-xs py-1" onClick={() => setShowBulkPerito(true)}>Alterar perito…</button>
+                  : <>
+                      <input className="input text-xs py-1 w-40" placeholder="Nome do perito"
+                        value={bulkPerito} onChange={e => setBulkPerito(e.target.value)} list="peritos-bulk-dash"/>
+                      <datalist id="peritos-bulk-dash">{peritos.map(p => <option key={p} value={p}/>)}</datalist>
+                      <button className="btn btn-primary text-xs py-1" onClick={() => bulkUpdate.mutate({ field:'perito_avaliador', value:bulkPerito })}>OK</button>
+                      <button className="btn text-xs py-1" onClick={() => { setShowBulkPerito(false); setBulkPerito('') }}>✕</button>
+                    </>
+                }
+              </div>
+
+              <button className="btn text-xs text-red-500 hover:bg-red-50 border-red-200 ml-auto"
+                onClick={() => { if (confirm(`Eliminar ${selected.size} imóveis permanentemente?`)) bulkDelete.mutate() }}>
+                <Trash2 size={12}/> Eliminar {selected.size}
+              </button>
+              <button className="btn text-xs" onClick={() => setSelected(new Set())}>Cancelar</button>
+            </div>
+          )}
+
           {isLoading ? (
-            <p className="text-sm text-gray-400 py-6 text-center">A carregar…</p>
+            <p className="text-sm text-gray-400 py-4 text-center">A carregar…</p>
           ) : filtered.length === 0 ? (
-            <p className="text-sm text-gray-400 py-6 text-center">Nenhum imóvel encontrado.</p>
+            <p className="text-sm text-gray-400 py-4 text-center">Nenhum imóvel encontrado.</p>
           ) : (
             <div className="overflow-x-auto">
               <table className="table-base">
                 <thead>
                   <tr>
+                    <th className="w-8">
+                      <button onClick={selectAll} className="text-gray-400 hover:text-brand-500">
+                        {selected.size === filtered.length && filtered.length > 0
+                          ? <CheckSquare size={13} className="text-brand-400"/>
+                          : <Square size={13}/>}
+                      </button>
+                    </th>
                     <th>Ref.</th>
                     <th>Localização</th>
                     <th>Tipo</th>
@@ -269,57 +372,50 @@ export default function Dashboard() {
                   </tr>
                 </thead>
                 <tbody>
-                  {filtered.map((p: any) => {
-                    const hasPhotos = p.tem_fotos || (p.photos && p.photos.length > 0)
-                    const hasComps  = p.tem_comparaveis || (p.market_comps && p.market_comps.length > 0)
-                    return (
-                      <tr key={p.id}>
+                  {filtered.map((p: any, idx: number) => (
+                    <tr key={p.id} className={selected.has(p.id) ? 'bg-brand-50' : idx%2===0 ? 'bg-white' : 'bg-gray-50/30'}>
+                      <td>
+                        <button onClick={() => toggleSelect(p.id)} className="text-gray-400 hover:text-brand-500">
+                          {selected.has(p.id) ? <CheckSquare size={13} className="text-brand-400"/> : <Square size={13}/>}
+                        </button>
+                      </td>
+                      <td>
+                        <Link to={`/properties/${p.id}`} className="text-brand-600 hover:underline font-medium whitespace-nowrap">
+                          {p.ref}
+                        </Link>
+                      </td>
+                      <td className="text-gray-600 max-w-[160px] truncate">{p.municipality || p.address || '—'}</td>
+                      <td className="text-gray-600 whitespace-nowrap">{[p.property_type, p.typology].filter(Boolean).join(' ') || '—'}</td>
+                      {role === 'admin' && (
                         <td>
-                          <Link to={`/properties/${p.id}`} className="text-brand-600 hover:underline font-medium">
-                            {p.ref}
-                          </Link>
+                          <InlineEdit value={p.perito_avaliador}
+                            onSave={val => updateField.mutate({ id:p.id, field:'perito_avaliador', value:val||null })}/>
                         </td>
-                        <td className="text-gray-600 max-w-[160px] truncate">
-                          {p.municipality || p.address || '—'}
-                        </td>
-                        <td className="text-gray-600 whitespace-nowrap">
-                          {[p.property_type, p.typology].filter(Boolean).join(' ') || '—'}
-                        </td>
-                        {role === 'admin' && (
-                          <td className="text-gray-500 text-xs whitespace-nowrap">{p.perito_avaliador || '—'}</td>
-                        )}
-                        <td>
-                          <InlineVisitSelect id={p.id} value={p.visit_status} onSaved={noop} />
-                        </td>
-                        <td><BillingBadge status={p.billing_status} /></td>
-                        <td className="text-gray-600 whitespace-nowrap">
-                          {p.fee_amount ? formatCurrency(p.fee_amount) : '—'}
-                        </td>
-                        <td className="text-center">
-                          <InlineToggle
-                            id={p.id} field="tem_fotos" value={!!hasPhotos} onSaved={noop}
-                            trueLabel="Sim" falseLabel="Não"
-                            trueColor="bg-blue-100 text-blue-600 hover:bg-blue-200"
-                          />
-                        </td>
-                        <td className="text-center">
-                          <InlineToggle
-                            id={p.id} field="tem_comparaveis" value={!!hasComps} onSaved={noop}
-                            trueLabel="Sim" falseLabel="Não"
-                            trueColor="bg-purple-100 text-purple-600 hover:bg-purple-200"
-                          />
-                        </td>
-                        <td className="text-center">
-                          <InlineToggle
-                            id={p.id} field="verificado" value={!!p.verificado} onSaved={noop}
-                            trueLabel="Sim" falseLabel="Não"
-                            trueColor="bg-emerald-100 text-emerald-600 hover:bg-emerald-200"
-                          />
-                        </td>
-                        <td className="text-gray-400 whitespace-nowrap">{formatDate(p.updated_at)}</td>
-                      </tr>
-                    )
-                  })}
+                      )}
+                      <td>
+                        <InlineVisitSelect id={p.id} value={p.visit_status}
+                          onChange={(id, val) => updateField.mutate({ id, field:'visit_status', value:val })}/>
+                      </td>
+                      <td><BillingBadge status={p.billing_status} /></td>
+                      <td className="text-gray-600 whitespace-nowrap">{p.fee_amount ? formatCurrency(p.fee_amount) : '—'}</td>
+                      <td className="text-center">
+                        <BoolBadge value={!!p.tem_fotos} trueLabel="Sim" falseLabel="Não"
+                          color="bg-blue-100 text-blue-600 hover:bg-blue-200"
+                          onClick={() => updateField.mutate({ id:p.id, field:'tem_fotos', value:!p.tem_fotos })}/>
+                      </td>
+                      <td className="text-center">
+                        <BoolBadge value={!!p.tem_comparaveis} trueLabel="Sim" falseLabel="Não"
+                          color="bg-purple-100 text-purple-600 hover:bg-purple-200"
+                          onClick={() => updateField.mutate({ id:p.id, field:'tem_comparaveis', value:!p.tem_comparaveis })}/>
+                      </td>
+                      <td className="text-center">
+                        <BoolBadge value={!!p.verificado} trueLabel="Sim" falseLabel="Não"
+                          color="bg-emerald-100 text-emerald-600 hover:bg-emerald-200"
+                          onClick={() => updateField.mutate({ id:p.id, field:'verificado', value:!p.verificado })}/>
+                      </td>
+                      <td className="text-gray-400 whitespace-nowrap">{formatDate(p.updated_at)}</td>
+                    </tr>
+                  ))}
                 </tbody>
               </table>
             </div>
