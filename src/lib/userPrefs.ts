@@ -1,93 +1,87 @@
-// Preferências persistentes do utilizador
+const KEY_PERITO       = 'addvaliador_perito'
+const KEY_FILTERS      = 'addvaliador_property_filters'
+const KEY_VISIBLE_COLS = 'addvaliador_visible_cols'
 
-const KEY_PERITO          = 'addvaliador_perito'
-const KEY_FILTERS         = 'addvaliador_property_filters'
-const KEY_VISIBLE_COLS    = 'addvaliador_visible_cols'
-
-export function getSavedPerito(): string {
-  return localStorage.getItem(KEY_PERITO) || ''
-}
-export function savePerito(name: string) {
-  localStorage.setItem(KEY_PERITO, name)
-}
+export function getSavedPerito(): string { return localStorage.getItem(KEY_PERITO) || '' }
+export function savePerito(name: string) { localStorage.setItem(KEY_PERITO, name) }
 
 export interface PropertyFilters {
-  search: string
-  visitFilter: string
-  billingFilter: string
-  districtFilter: string[]
-  parishFilter: string[]
-  peritoFilter: string
+  search: string; visitFilter: string; billingFilter: string
+  districtFilter: string[]; parishFilter: string[]; peritoFilter: string
 }
-const DEFAULT_FILTERS: PropertyFilters = {
-  search:'', visitFilter:'', billingFilter:'',
-  districtFilter:[], parishFilter:[], peritoFilter:''
-}
+const DEFAULT_FILTERS: PropertyFilters = { search:'', visitFilter:'', billingFilter:'', districtFilter:[], parishFilter:[], peritoFilter:'' }
 export function getSavedFilters(): PropertyFilters {
-  try {
-    const raw = localStorage.getItem(KEY_FILTERS)
-    return raw ? { ...DEFAULT_FILTERS, ...JSON.parse(raw) } : DEFAULT_FILTERS
-  } catch { return DEFAULT_FILTERS }
+  try { const r = localStorage.getItem(KEY_FILTERS); return r ? {...DEFAULT_FILTERS,...JSON.parse(r)} : DEFAULT_FILTERS } catch { return DEFAULT_FILTERS }
 }
-export function saveFilters(f: PropertyFilters) {
-  localStorage.setItem(KEY_FILTERS, JSON.stringify(f))
-}
-export function clearFilters() {
-  localStorage.removeItem(KEY_FILTERS)
+export function saveFilters(f: PropertyFilters) { localStorage.setItem(KEY_FILTERS, JSON.stringify(f)) }
+export function clearFilters() { localStorage.removeItem(KEY_FILTERS) }
+
+// ── Column definitions ───────────────────────────────────────
+// group: 'base' = white bg, 'abanca' = blue tint bg
+export interface ColDef { label: string; group: 'base' | 'abanca' }
+
+export const ALL_COLUMNS: Record<string, ColDef> = {
+  // Base fields
+  ref:                    { label:'Ref.',              group:'base' },
+  external_ref:           { label:'Ref. externa',      group:'base' },
+  id_registo_predial:     { label:'Reg. Predial',      group:'base' },
+  id_registo_matricial:   { label:'Reg. Matricial',    group:'base' },
+  fracao:                 { label:'Fracção',            group:'base' },
+  street:                 { label:'Rua',               group:'base' },
+  number:                 { label:'Nº',                group:'base' },
+  block:                  { label:'Bloco',             group:'base' },
+  floor_letter:           { label:'Piso/Letra',        group:'base' },
+  postal_code:            { label:'Cód. Postal',       group:'base' },
+  parish:                 { label:'Freguesia',         group:'base' },
+  municipality:           { label:'Concelho',          group:'base' },
+  district:               { label:'Distrito',          group:'base' },
+  property_type:          { label:'Tipo de Bem',       group:'base' },
+  property_subtype:       { label:'Subtipo',           group:'base' },
+  use_type:               { label:'Uso',               group:'base' },
+  use_subtype:            { label:'Subuso',            group:'base' },
+  property_state:         { label:'Estado Bem',        group:'base' },
+  typology:               { label:'Tipologia',         group:'base' },
+  year_built:             { label:'Ano Const.',        group:'base' },
+  area_m2:                { label:'m² (N)',            group:'base' },
+  area_garage_m2:         { label:'m² Garagem',        group:'base' },
+  area_annex_m2:          { label:'m² Anexo',          group:'base' },
+  gross_area:             { label:'Área bruta',        group:'base' },
+  useful_area:            { label:'Área útil',         group:'base' },
+  land_area:              { label:'Terreno',           group:'base' },
+  perito_avaliador:       { label:'Perito Avaliador',  group:'base' },
+  visit_status:           { label:'Estado visita',     group:'base' },
+  visit_date:             { label:'Data visita',       group:'base' },
+  billing_status:         { label:'Est. faturação',    group:'base' },
+  fee_amount:             { label:'Honorário',         group:'base' },
+  po_number:              { label:'Nº PO',             group:'base' },
+  invoice_number:         { label:'Nº Fatura',        group:'base' },
+  payment_date:           { label:'Dt. Pagamento',     group:'base' },
+  geo:                    { label:'Geo',               group:'base' },
+  // ABANCA fields (cols A-Z) — highlighted in blue
+  nuc_risco:              { label:'NUC Risco',         group:'abanca' },
+  data_pedido:            { label:'Data Pedido',       group:'abanca' },
+  tipo_reavaliacao:       { label:'Tipo Reavaliação',  group:'abanca' },
+  tipo_via:               { label:'Tipo Via',          group:'abanca' },
+  escada:                 { label:'Escada',            group:'abanca' },
+  ampliacao:              { label:'Ampliação',         group:'abanca' },
+  lugar:                  { label:'Lugar',             group:'abanca' },
+  // ABANCA previous valuation fields
+  prev_valuation_date:    { label:'Dt. Aval. Anterior',  group:'abanca' },
+  prev_valuation_value:   { label:'Valor Aval. Anterior', group:'abanca' },
+  prev_valuation_method:  { label:'Método Aval.',      group:'abanca' },
+  prev_valuation_expert:  { label:'Perito Anterior',   group:'abanca' },
+  prev_valuation_entity:  { label:'Entidade Anterior', group:'abanca' },
 }
 
-// All available columns (key → label)
-export const ALL_COLUMNS: Record<string, string> = {
-  ref:                    'Ref.',
-  external_ref:           'Ref. externa',
-  id_registo_predial:     'Reg. Predial',
-  id_registo_matricial:   'Reg. Matricial',
-  fracao:                 'Fracção',
-  street:                 'Rua',
-  number:                 'Nº',
-  block:                  'Bloco',
-  floor_letter:           'Piso/Letra',
-  postal_code:            'Cód. Postal',
-  parish:                 'Freguesia',
-  municipality:           'Concelho',
-  district:               'Distrito',
-  property_type:          'Tipo de Bem',
-  property_subtype:       'Subtipo',
-  use_type:               'Uso',
-  use_subtype:            'Subuso',
-  property_state:         'Estado Bem',
-  typology:               'Tipologia',
-  year_built:             'Ano Const.',
-  area_m2:                'm² (N)',
-  area_garage_m2:         'm² Garagem',
-  area_annex_m2:          'm² Anexo',
-  gross_area:             'Área bruta',
-  useful_area:            'Área útil',
-  land_area:              'Terreno',
-  perito_avaliador:       'Perito Avaliador',
-  visit_status:           'Estado visita',
-  visit_date:             'Data visita',
-  billing_status:         'Est. faturação',
-  fee_amount:             'Honorário',
-  po_number:              'Nº PO',
-  invoice_number:         'Nº Fatura',
-  payment_date:           'Dt. Pagamento',
-  geo:                    'Geo',
-}
-
-// Default visible columns
 const DEFAULT_VISIBLE = [
-  'ref','external_ref','street','municipality','district',
+  'ref','external_ref','district','municipality','parish',
+  'street','number','postal_code',
   'property_type','typology','area_m2',
-  'perito_avaliador','visit_status','billing_status','fee_amount'
+  'perito_avaliador','visit_status','billing_status','fee_amount',
+  'nuc_risco','data_pedido','tipo_reavaliacao',
 ]
 
 export function getSavedVisibleCols(): string[] {
-  try {
-    const raw = localStorage.getItem(KEY_VISIBLE_COLS)
-    return raw ? JSON.parse(raw) : DEFAULT_VISIBLE
-  } catch { return DEFAULT_VISIBLE }
+  try { const r = localStorage.getItem(KEY_VISIBLE_COLS); return r ? JSON.parse(r) : DEFAULT_VISIBLE } catch { return DEFAULT_VISIBLE }
 }
-export function saveVisibleCols(cols: string[]) {
-  localStorage.setItem(KEY_VISIBLE_COLS, JSON.stringify(cols))
-}
+export function saveVisibleCols(cols: string[]) { localStorage.setItem(KEY_VISIBLE_COLS, JSON.stringify(cols)) }
