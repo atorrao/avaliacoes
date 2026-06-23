@@ -106,7 +106,7 @@ _(Disponível após carregares o template do cliente)_
 - Ficha do imóvel → botão "Gerar report Excel"
 - Descarrega um `.xlsx` com dados do imóvel + comparáveis
 
----
+--
 
 ## 6. Próximos passos (roadmap)
 
