@@ -28,6 +28,71 @@ async function fetchBuf(url: string): Promise<ArrayBuffer | null> {
   } catch { return null }
 }
 
+// Traduz termos em espanhol para português europeu
+function traduzTipo(val: any): string {
+  if (!val) return ''
+  const map: Record<string, string> = {
+    // Tipos de imóvel
+    'VIVIENDA':              'Habitação',
+    'PISO':                  'Apartamento',
+    'CASA':                  'Moradia',
+    'GARAJE':                'Garagem',
+    'TRASTERO':              'Arrumos',
+    'LOCAL COMERCIAL':       'Loja Comercial',
+    'OFICINA':               'Escritório',
+    'NAVE INDUSTRIAL':       'Nave Industrial',
+    'TERRENO FINCA RUSTICA': 'Terreno Rústico',
+    'TERRENO FINCA URBANA':  'Terreno Urbano',
+    'SOLAR':                 'Terreno Urbano',
+    'FINCA RUSTICA':         'Propriedade Rústica',
+    'EDIFICIO':              'Edifício',
+    'CHALET':                'Moradia',
+    'DUPLEX':                'Duplex',
+    'ATICO':                 'Cobertura',
+    'ESTUDIO':               'Estúdio',
+    // Finalidades
+    'ADJUDICADO CON VISITA INTERIOR':    'Adjudicado com visita interior',
+    'ADJUDICADO SIN VISITA INTERIOR':    'Adjudicado sem visita interior',
+    // Estados
+    'NUEVA CONSTRUCCION':  'Construção Nova',
+    'SEGUNDA MANO':        'Usado',
+    'EN PROYECTO':         'Em Projecto',
+    'EN CONSTRUCCION':     'Em Construção',
+    'REHABILITADO':        'Reabilitado',
+    // Conservação
+    'MUY BUENO':           'Muito Bom',
+    'BUENO':               'Bom',
+    'NORMAL':              'Normal',
+    'DEFICIENTE':          'Deficiente',
+    'MUY DEFICIENTE':      'Muito Deficiente',
+    'RUINOSO':             'Ruinoso',
+    // Ocupação
+    'OCUPADO':             'Ocupado',
+    'LIBRE':               'Livre',
+    'ARRENDADO':           'Arrendado',
+    // Mercado
+    'POSITIVA':            'Positiva',
+    'NEGATIVA':            'Negativa',
+    'ESTABLE':             'Estável',
+    'EN ALZA':             'Em Alta',
+    'EN BAJA':             'Em Baixa',
+    // Tipo via
+    'CALLE':               'Rua',
+    'AVENIDA':             'Avenida',
+    'PLAZA':               'Praça',
+    'PASEO':               'Passeio',
+    'CARRETERA':           'Estrada',
+  }
+  const upper = String(val).toUpperCase().trim()
+  return map[upper] || val
+}
+
+// Traduz campos genéricos que possam conter texto em espanhol
+function tr(val: any): string {
+  if (!val) return ''
+  return traduzTipo(val)
+}
+
 export async function generateAbancaReport(
   property: any,
   photos: { url: string; slot?: number }[],
@@ -35,13 +100,13 @@ export async function generateAbancaReport(
   templateUrl: string
 ): Promise<void> {
   const tmplBuf = await fetchBuf(templateUrl)
-  if (!tmplBuf) throw new Error('Não foi possível carregar o template. Verifica a variável VITE_REPORT_TEMPLATE_URL.')
+  if (!tmplBuf) throw new Error('Não foi possível carregar o modelo. Verifique a variável VITE_REPORT_TEMPLATE_URL.')
 
   const wb = new ExcelJS.Workbook()
   await wb.xlsx.load(tmplBuf)
 
   const ws = wb.getWorksheet('RELATÓRIO - PT')
-  if (!ws) throw new Error('Folha "RELATÓRIO - PT" não encontrada.')
+  if (!ws) throw new Error('Folha "RELATÓRIO - PT" não encontrada no modelo.')
 
   const p = property
 
@@ -58,7 +123,7 @@ export async function generateAbancaReport(
   set('X11', v(p.external_ref, v(p.ref)))
 
   // 2. MORADA
-  set('D19',  v(p.tipo_via))
+  set('D19',  tr(v(p.tipo_via)))
   set('I19',  v(p.street, v(p.address)))
   set('X19',  v(p.number))
   set('Z19',  v(p.floor_letter))
@@ -71,34 +136,34 @@ export async function generateAbancaReport(
   if (p.longitude) set('D31', p.longitude)
   if (p.latitude)  set('G31', p.latitude)
 
-  // 3. DESCRIÇÃO
-  set('D38',  v(p.property_type))
-  set('K38',  v(p.property_subtype))
-  set('U38',  v(p.use_type))
-  set('AD38', v(p.use_subtype))
-  set('D44',  v(p.estado_construcao, v(p.property_state)))
-  set('O44',  v(p.destino))
-  set('V44',  v(p.estado_conservacao))
-  set('AC44', v(p.estado_ocupacao))
+  // 3. DESCRIÇÃO DO IMÓVEL
+  set('D38',  tr(v(p.property_type)))
+  set('K38',  tr(v(p.property_subtype)))
+  set('U38',  tr(v(p.use_type)))
+  set('AD38', tr(v(p.use_subtype)))
+  set('D44',  tr(v(p.estado_construcao, v(p.property_state))))
+  set('O44',  tr(v(p.destino)))
+  set('V44',  tr(v(p.estado_conservacao)))
+  set('AC44', tr(v(p.estado_ocupacao)))
   set('D50',  v(p.composicao_imovel, v(p.typology)))
   set('D56',  v(p.id_registo_predial))
   set('D62',  v(p.id_registo_matricial))
   set('G62',  v(p.fracao))
-  set('D68',  v(p.tipo_predio))
+  set('D68',  tr(v(p.tipo_predio)))
 
-  // 4. LOCALIZAÇÃO
-  set('J75', v(p.caract_mercado))
-  set('J78', v(p.tipo_expectativa_mercado))
-  set('J79', v(p.ocupacao_laboral))
+  // 4. ENQUADRAMENTO NO MERCADO LOCAL
+  set('J75', tr(v(p.caract_mercado)))
+  set('J78', tr(v(p.tipo_expectativa_mercado)))
+  set('J79', tr(v(p.ocupacao_laboral)))
   set('J80', v(p.populacao_concelho))
-  set('J81', v(p.evolucao_mercado, 'Tendencialmente positiva'))
+  set('J81', tr(v(p.evolucao_mercado, 'Tendencialmente positiva')))
 
-  // 5. CONSTRUÇÃO
+  // 5. CARACTERÍSTICAS DA CONSTRUÇÃO
   if (p.nr_quartos)         set('D86', Number(p.nr_quartos))
   if (p.nr_inst_sanitarias) set('G86', Number(p.nr_inst_sanitarias))
   set('J86', v(p.nr_pisos, 1))
-  set('L86', v(p.qualidade_construcao, 'Média'))
-  set('P86', v(p.orientacao_solar, 'Não influi no valor'))
+  set('L86', tr(v(p.qualidade_construcao, 'Média')))
+  set('P86', tr(v(p.orientacao_solar, 'Não influi no valor')))
   set('D92', v(p.nr_certificado_energ))
   set('J92', v(p.classe_energetica))
   set('N92', fmtDate(p.data_emissao_cert))
@@ -113,7 +178,7 @@ export async function generateAbancaReport(
   set('Q105', fmtArea(areaVal))
   set('T105', fmtArea(p.area_annex_m2))
 
-  // 7. COMPARÁVEIS
+  // 7. ELEMENTOS COMPARÁVEIS
   comps.slice(0, 3).forEach((c: any, idx: number) => {
     const row  = 116 + idx
     const desc = v(c.notes, `${v(c.portal)} ref.${v(c.listing_ref)}`)
@@ -127,37 +192,37 @@ export async function generateAbancaReport(
     }
   })
 
-  // 14. CONDICIONALISMOS
+  // 14. CONDICIONALISMOS E ADVERTÊNCIAS
   set('B248', v(p.prev_valuation_conditions, 'Nenhum'))
 
-  // 16. CONCLUSÃO
+  // 16. CONCLUSÃO DA AVALIAÇÃO
   if (p.valor_mercado)            set('D265', Number(p.valor_mercado))
   if (p.valor_venda_rapida)       set('J265', Number(p.valor_venda_rapida))
   if (p.valor_seguro)             set('R265', Number(p.valor_seguro))
   if (p.valor_mercado_atual)      set('D272', Number(p.valor_mercado_atual))
   if (p.valor_venda_rapida_atual) set('J272', Number(p.valor_venda_rapida_atual))
 
-  // 18. CERTIFICAÇÃO
+  // 18. CERTIFICAÇÃO E ASSINATURA
   set('K303',  fmtDate(p.data_pedido_relatorio || p.data_pedido))
   set('O303',  fmtDate(p.data_visita || p.visit_date))
   set('V303',  fmtDate(p.data_conclusao || p.data_relatorio))
   set('AC303', fmtDate(p.prev_valuation_date))
   set('D306',  v(p.perito_avaliador))
 
-  // FOTOS
+  // FOTOS DO IMÓVEL
   if (photos.length > 0) {
     let wsf = wb.getWorksheet('Fotos do Imóvel')
     if (!wsf) wsf = wb.addWorksheet('Fotos do Imóvel')
 
     wsf.getCell('A1').value = 'RELATÓRIO DE AVALIAÇÃO IMOBILIÁRIA'
     wsf.getCell('A1').font  = { bold: true, size: 14 }
-    wsf.getCell('A2').value = 'ANEXO — FOTOS DO IMÓVEL'
+    wsf.getCell('A2').value = 'ANEXO — REGISTO FOTOGRÁFICO DO IMÓVEL'
     wsf.getCell('A2').font  = { bold: true, size: 12 }
-    wsf.getCell('A3').value = `Ref: ${v(p.ref)}  —  ${v(p.street, v(p.address))}  —  ${v(p.municipality)}`
+    wsf.getCell('A3').value = `Ref.: ${v(p.ref)}  —  ${v(p.street, v(p.address))}  —  ${v(p.municipality)}`
     wsf.getColumn(1).width = 45
     wsf.getColumn(5).width = 45
 
-    let row = 5, col = 0 // 0-indexed for ExcelJS
+    let row = 5, col = 0
 
     for (let i = 0; i < Math.min(photos.length, 10); i++) {
       const photo = photos[i]
@@ -171,11 +236,11 @@ export async function generateAbancaReport(
         wsf.getRow(row).height = 165
         wsf.getCell(row + 15, col + 1).value = `Foto ${i + 1}`
         if (col === 0) { col = 4 } else { col = 0; row += 17 }
-      } catch { /* skip */ }
+      } catch { /* ignorar foto com erro */ }
     }
   }
 
-  // Download
+  // Descarregar ficheiro
   const buf = await wb.xlsx.writeBuffer()
   const ref  = v(p.ref, 'imovel').replace(/[^a-zA-Z0-9_-]/g, '_')
   const date = new Date().toISOString().slice(0, 10)
