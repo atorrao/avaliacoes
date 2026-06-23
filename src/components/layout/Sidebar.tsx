@@ -1,18 +1,19 @@
 import { NavLink } from 'react-router-dom'
-import { LayoutDashboard, Building2, Briefcase, Map, Receipt, TrendingUp, Upload, Users } from 'lucide-react'
+import {
+  LayoutDashboard, Building2, Briefcase, Map,
+  Receipt, TrendingUp, Users
+} from 'lucide-react'
 
 const nav = [
-  { label: 'Dashboard',        to: '/dashboard',  icon: LayoutDashboard },
-  { label: 'Clientes',         to: '/clients',    icon: Users },
-  { label: 'Portfólios',       to: '/portfolios', icon: Briefcase },
-  { label: 'Imóveis',          to: '/properties', icon: Building2 },
-  { label: 'Mapa',             to: '/map',        icon: Map },
-  { section: 'Avaliações' },
-  { label: 'Import data-tape', to: '/import',     icon: Upload },
+  { label: 'Dashboard',   to: '/dashboard',  icon: LayoutDashboard },
+  { label: 'Clientes',    to: '/clients',    icon: Users },
+  { label: 'Portfólios',  to: '/portfolios', icon: Briefcase },
+  { label: 'Imóveis',     to: '/properties', icon: Building2 },
+  { label: 'Mapa',        to: '/map',        icon: Map },
   { section: 'Financeiro' },
-  { label: 'Faturação',        to: '/billing',    icon: Receipt },
+  { label: 'Faturação',   to: '/billing',    icon: Receipt },
   { section: 'Mercado' },
-  { label: 'Prospeção',        to: '/market',     icon: TrendingUp },
+  { label: 'Prospeção',   to: '/market',     icon: TrendingUp },
 ]
 
 export default function Sidebar() {
@@ -38,7 +39,7 @@ export default function Sidebar() {
           )
         })}
       </nav>
-      <div className="px-4 py-3 border-t border-gray-100 text-xs text-gray-400">v0.2.0</div>
+      <div className="px-4 py-3 border-t border-gray-100 text-xs text-gray-400">v0.3.0</div>
     </aside>
   )
 }
