@@ -166,7 +166,7 @@ export async function generateAbancaReport(
         const buf = await fetchBuf(photo.url)
         if (!buf) continue
         const ext = photo.url.toLowerCase().includes('.png') ? 'png' : 'jpeg'
-        const imgId = wb.addImage({ buffer: buf as Buffer, extension: ext })
+        const imgId = wb.addImage({ buffer: buf as ArrayBuffer, extension: ext })
         wsf.addImage(imgId, { tl: { col, row: row - 1 }, ext: { width: 300, height: 220 } })
         wsf.getRow(row).height = 165
         wsf.getCell(row + 15, col + 1).value = `Foto ${i + 1}`
