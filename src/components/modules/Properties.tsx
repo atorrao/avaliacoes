@@ -8,7 +8,7 @@ import { ChevronDown, ChevronRight, Trash2, CheckSquare, Square, Eye, EyeOff, Pe
 import toast from 'react-hot-toast'
 import {
   getSavedFilters, saveFilters, clearFilters, type PropertyFilters,
-  getSavedVisibleCols, saveVisibleCols, ALL_COLUMNS
+  getSavedVisibleCols, saveVisibleCols, ALL_COLUMNS, type ColDef
 } from '@/lib/userPrefs'
 
 const VISIT_LABELS: Record<string,string>   = { pending:'Por visitar', scheduled:'Agendado', visited:'Visitado', report_done:'Report OK' }
@@ -80,7 +80,7 @@ function ColumnPicker({ visible, onChange }: { visible:string[]; onChange:(v:str
           <div className="px-3 py-1.5 text-[10px] font-semibold uppercase tracking-wider text-gray-400 bg-gray-50">
             Campos gerais ({baseCount})
           </div>
-          {Object.entries(ALL_COLUMNS).filter(([,d]) => d.group === 'base').map(([col, def]) => (
+          {(Object.entries(ALL_COLUMNS) as [string, ColDef][]).filter(([,d]) => d.group === 'base').map(([col, def]) => (
             <button key={col} className="w-full text-left px-3 py-1.5 text-xs hover:bg-gray-50 flex items-center gap-2" onClick={() => toggle(col)}>
               {visible.includes(col) ? <Eye size={12} className="text-brand-400 flex-shrink-0"/> : <EyeOff size={12} className="text-gray-300 flex-shrink-0"/>}
               <span className={visible.includes(col) ? 'text-gray-800' : 'text-gray-400'}>{def.label}</span>
@@ -91,7 +91,7 @@ function ColumnPicker({ visible, onChange }: { visible:string[]; onChange:(v:str
           <div className="px-3 py-1.5 text-[10px] font-semibold uppercase tracking-wider text-blue-500 bg-blue-50 mt-1">
             Campos ABANCA ({abancaCount})
           </div>
-          {Object.entries(ALL_COLUMNS).filter(([,d]) => d.group === 'abanca').map(([col, def]) => (
+          {(Object.entries(ALL_COLUMNS) as [string, ColDef][]).filter(([,d]) => d.group === 'abanca').map(([col, def]) => (
             <button key={col} className="w-full text-left px-3 py-1.5 text-xs hover:bg-blue-50 flex items-center gap-2 bg-blue-50/30" onClick={() => toggle(col)}>
               {visible.includes(col) ? <Eye size={12} className="text-blue-400 flex-shrink-0"/> : <EyeOff size={12} className="text-gray-300 flex-shrink-0"/>}
               <span className={visible.includes(col) ? 'text-blue-800' : 'text-gray-400'}>{def.label}</span>
