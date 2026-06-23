@@ -46,10 +46,10 @@ const ALIASES: Record<string, string> = {
   'morada':                         'address',
   'endereco':                       'address',
   'address':                        'address',
-  'concelho':                       'municipality',
+  // Note: 'concelho'/'distrito' alone = numeric codes in ABANCA — map to code fields, not name fields
+  // NOME_CONCELHO and NOME_DISTRITO are the actual names (mapped above)
   'municipio':                      'municipality',
   'municipality':                   'municipality',
-  'distrito':                       'district',
   'district':                       'district',
   'cp':                             'postal_code',
   'cod postal':                     'postal_code',
