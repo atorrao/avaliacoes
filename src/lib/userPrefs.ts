@@ -22,8 +22,7 @@ export interface ColDef { label: string; group: 'base' | 'abanca' }
 
 export const ALL_COLUMNS: Record<string, ColDef> = {
   // Base fields
-  ref:                    { label:'Ref.',              group:'base' },
-  external_ref:           { label:'Ref. externa',      group:'base' },
+  external_ref:           { label:'Ref. Externa',      group:'base' },
   id_registo_predial:     { label:'Reg. Predial',      group:'base' },
   id_registo_matricial:   { label:'Reg. Matricial',    group:'base' },
   fracao:                 { label:'Fracção',            group:'base' },
@@ -74,7 +73,7 @@ export const ALL_COLUMNS: Record<string, ColDef> = {
 }
 
 const DEFAULT_VISIBLE = [
-  'ref','external_ref','district','municipality','parish',
+  'external_ref','district','municipality','parish',
   'street','number','postal_code',
   'property_type','typology','area_m2',
   'perito_avaliador','visit_status','billing_status','fee_amount',
