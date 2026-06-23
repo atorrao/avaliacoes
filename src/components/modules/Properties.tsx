@@ -14,7 +14,6 @@ import {
 const VISIT_LABELS: Record<string,string>   = { pending:'Por visitar', scheduled:'Agendado', visited:'Visitado', report_done:'Report OK' }
 const BILLING_LABELS: Record<string,string> = { no_po:'Sem PO', awaiting_po:'A aguardar PO', po_received:'PO recebida', invoice_pending:'Fat. por emitir', invoice_issued:'Fat. emitida', paid:'Pago' }
 
-// ── Multi-select dropdown ─────────────────────────────────
 function MultiSelect({ label, options, selected, onChange }: { label:string; options:string[]; selected:string[]; onChange:(v:string[])=>void }) {
   const [open, setOpen] = useState(false)
   const ref = useRef<HTMLDivElement>(null)
@@ -34,7 +33,7 @@ function MultiSelect({ label, options, selected, onChange }: { label:string; opt
         <div className="absolute top-full left-0 mt-1 bg-white border border-gray-200 rounded-lg shadow-lg z-50 min-w-[200px] max-h-60 overflow-y-auto">
           {options.length === 0 ? <p className="text-xs text-gray-400 px-3 py-2">Sem opções</p> : (
             <>
-              <button className="w-full text-left px-3 py-2 text-xs text-gray-400 hover:bg-gray-50 border-b border-gray-100" onClick={() => onChange([])}>Limpar selecção</button>
+              <button className="w-full text-left px-3 py-2 text-xs text-gray-400 hover:bg-gray-50 border-b border-gray-100" onClick={() => onChange([])}>Limpar</button>
               {options.map(o => (
                 <button key={o} className="w-full text-left px-3 py-2 text-sm hover:bg-gray-50 flex items-center gap-2" onClick={() => toggle(o)}>
                   {selected.includes(o) ? <CheckSquare size={13} className="text-brand-400"/> : <Square size={13} className="text-gray-300"/>}
@@ -49,7 +48,6 @@ function MultiSelect({ label, options, selected, onChange }: { label:string; opt
   )
 }
 
-// ── Column picker dropdown ────────────────────────────────
 function ColumnPicker({ visible, onChange }: { visible:string[]; onChange:(v:string[])=>void }) {
   const [open, setOpen] = useState(false)
   const ref = useRef<HTMLDivElement>(null)
@@ -59,30 +57,44 @@ function ColumnPicker({ visible, onChange }: { visible:string[]; onChange:(v:str
   }, [])
   function toggle(col: string) {
     const next = visible.includes(col) ? visible.filter(c => c !== col) : [...visible, col]
-    onChange(next)
-    saveVisibleCols(next)
+    onChange(next); saveVisibleCols(next)
   }
+  const baseCount   = Object.keys(ALL_COLUMNS).filter(k => ALL_COLUMNS[k].group === 'base').length
+  const abancaCount = Object.keys(ALL_COLUMNS).filter(k => ALL_COLUMNS[k].group === 'abanca').length
   return (
     <div ref={ref} className="relative">
       <button className="btn flex items-center gap-1.5" onClick={() => setOpen(o => !o)}>
         <Eye size={13}/> Colunas ({visible.length})
       </button>
       {open && (
-        <div className="absolute top-full right-0 mt-1 bg-white border border-gray-200 rounded-lg shadow-xl z-50 w-64 max-h-80 overflow-y-auto">
-          <div className="px-3 py-2 border-b border-gray-100 flex items-center justify-between">
+        <div className="absolute top-full right-0 mt-1 bg-white border border-gray-200 rounded-lg shadow-xl z-50 w-72 max-h-96 overflow-y-auto">
+          <div className="px-3 py-2 border-b border-gray-100 flex items-center justify-between sticky top-0 bg-white">
             <span className="text-xs font-semibold text-gray-600">Colunas visíveis</span>
             <div className="flex gap-2">
               <button className="text-xs text-brand-500 hover:underline" onClick={() => { const all = Object.keys(ALL_COLUMNS); onChange(all); saveVisibleCols(all) }}>Todas</button>
-              <button className="text-xs text-gray-400 hover:underline" onClick={() => { const min = ['ref','visit_status','billing_status','fee_amount']; onChange(min); saveVisibleCols(min) }}>Mínimo</button>
+              <button className="text-xs text-gray-400 hover:underline" onClick={() => { const min=['ref','district','municipality','parish','street','property_type','visit_status','billing_status','fee_amount']; onChange(min); saveVisibleCols(min) }}>Mínimo</button>
             </div>
           </div>
-          {Object.entries(ALL_COLUMNS).map(([col, label]) => (
-            <button key={col} className="w-full text-left px-3 py-2 text-sm hover:bg-gray-50 flex items-center gap-2" onClick={() => toggle(col)}>
-              {visible.includes(col)
-                ? <Eye size={13} className="text-brand-400 flex-shrink-0"/>
-                : <EyeOff size={13} className="text-gray-300 flex-shrink-0"/>
-              }
-              <span className={visible.includes(col) ? 'text-gray-800' : 'text-gray-400'}>{label}</span>
+
+          {/* Base columns */}
+          <div className="px-3 py-1.5 text-[10px] font-semibold uppercase tracking-wider text-gray-400 bg-gray-50">
+            Campos gerais ({baseCount})
+          </div>
+          {Object.entries(ALL_COLUMNS).filter(([,d]) => d.group === 'base').map(([col, def]) => (
+            <button key={col} className="w-full text-left px-3 py-1.5 text-xs hover:bg-gray-50 flex items-center gap-2" onClick={() => toggle(col)}>
+              {visible.includes(col) ? <Eye size={12} className="text-brand-400 flex-shrink-0"/> : <EyeOff size={12} className="text-gray-300 flex-shrink-0"/>}
+              <span className={visible.includes(col) ? 'text-gray-800' : 'text-gray-400'}>{def.label}</span>
+            </button>
+          ))}
+
+          {/* ABANCA columns */}
+          <div className="px-3 py-1.5 text-[10px] font-semibold uppercase tracking-wider text-blue-500 bg-blue-50 mt-1">
+            Campos ABANCA ({abancaCount})
+          </div>
+          {Object.entries(ALL_COLUMNS).filter(([,d]) => d.group === 'abanca').map(([col, def]) => (
+            <button key={col} className="w-full text-left px-3 py-1.5 text-xs hover:bg-blue-50 flex items-center gap-2 bg-blue-50/30" onClick={() => toggle(col)}>
+              {visible.includes(col) ? <Eye size={12} className="text-blue-400 flex-shrink-0"/> : <EyeOff size={12} className="text-gray-300 flex-shrink-0"/>}
+              <span className={visible.includes(col) ? 'text-blue-800' : 'text-gray-400'}>{def.label}</span>
             </button>
           ))}
         </div>
@@ -91,34 +103,29 @@ function ColumnPicker({ visible, onChange }: { visible:string[]; onChange:(v:str
   )
 }
 
-// ── Inline editable cell ──────────────────────────────────
-function InlineEdit({ value, onSave, placeholder = '—' }: { value:string|null; onSave:(v:string)=>void; placeholder?:string }) {
+function InlineEdit({ value, onSave }: { value:string|null; onSave:(v:string)=>void }) {
   const [editing, setEditing] = useState(false)
   const [val, setVal]         = useState(value || '')
   useEffect(() => setVal(value || ''), [value])
   if (!editing) return (
     <div className="flex items-center gap-1 group cursor-pointer whitespace-nowrap" onClick={() => setEditing(true)}>
-      <span className={value ? 'text-gray-600' : 'text-gray-300'}>{value || placeholder}</span>
+      <span className={value ? 'text-gray-600' : 'text-gray-300'}>{value || '—'}</span>
       <Pencil size={10} className="opacity-0 group-hover:opacity-100 text-gray-400 flex-shrink-0"/>
     </div>
   )
   return (
     <div className="flex items-center gap-1" onClick={e => e.stopPropagation()}>
-      <input
-        className="border border-brand-300 rounded px-1 py-0.5 text-xs w-28 focus:outline-none focus:ring-1 focus:ring-brand-400"
+      <input className="border border-brand-300 rounded px-1 py-0.5 text-xs w-28 focus:outline-none focus:ring-1 focus:ring-brand-400"
         value={val} onChange={e => setVal(e.target.value)} autoFocus
-        onKeyDown={e => { if (e.key==='Enter') { onSave(val); setEditing(false) } if (e.key==='Escape') setEditing(false) }}
-      />
-      <button onClick={() => { onSave(val); setEditing(false) }} className="text-emerald-500 hover:text-emerald-600"><Check size={12}/></button>
-      <button onClick={() => { setVal(value||''); setEditing(false) }} className="text-gray-400 hover:text-gray-600"><X size={12}/></button>
+        onKeyDown={e => { if (e.key==='Enter') { onSave(val); setEditing(false) } if (e.key==='Escape') setEditing(false) }}/>
+      <button onClick={() => { onSave(val); setEditing(false) }} className="text-emerald-500"><Check size={12}/></button>
+      <button onClick={() => { setVal(value||''); setEditing(false) }} className="text-gray-400"><X size={12}/></button>
     </div>
   )
 }
 
-// ── Main component ────────────────────────────────────────
 export default function Properties() {
   const qc = useQueryClient()
-
   const [filters,     setFilters]     = useState<PropertyFilters>(getSavedFilters)
   const [visibleCols, setVisibleCols] = useState<string[]>(getSavedVisibleCols)
   const [collapsed,   setCollapsed]   = useState<Record<string,boolean>>({})
@@ -148,6 +155,9 @@ export default function Properties() {
           perito_avaliador, visit_status, visit_date,
           billing_status, fee_amount, po_number, invoice_number, payment_date,
           latitude, longitude,
+          nuc_risco, data_pedido, tipo_reavaliacao, tipo_via, escada, ampliacao, lugar,
+          prev_valuation_date, prev_valuation_value, prev_valuation_method,
+          prev_valuation_expert, prev_valuation_entity,
           portfolios(id, name, clients(name))
         `)
         .order('portfolio_id').order('ref')
@@ -163,11 +173,11 @@ export default function Properties() {
   const peritos = useMemo(() => [...new Set(rows.map((r: any) => r.perito_avaliador).filter(Boolean))].sort(), [rows])
 
   const filtered = useMemo(() => rows.filter((r: any) => {
-    if (filters.visitFilter    && r.visit_status     !== filters.visitFilter)    return false
-    if (filters.billingFilter  && r.billing_status   !== filters.billingFilter)  return false
+    if (filters.visitFilter   && r.visit_status     !== filters.visitFilter)   return false
+    if (filters.billingFilter && r.billing_status   !== filters.billingFilter) return false
     if (filters.districtFilter.length && !filters.districtFilter.includes(r.district)) return false
     if (filters.parishFilter.length   && !filters.parishFilter.includes(r.parish))     return false
-    if (filters.peritoFilter   && r.perito_avaliador !== filters.peritoFilter)   return false
+    if (filters.peritoFilter  && r.perito_avaliador !== filters.peritoFilter)  return false
     if (filters.search) {
       const s = filters.search.toLowerCase()
       return [r.ref, r.external_ref, r.address, r.street, r.municipality,
@@ -199,7 +209,6 @@ export default function Properties() {
     setSelected(prev => prev.size === allIds.length ? new Set() : new Set(allIds))
   }
 
-  // Inline perito update
   const updatePerito = useMutation({
     mutationFn: async ({ id, value }: { id:string; value:string }) => {
       const { error } = await supabase.from('properties').update({ perito_avaliador: value||null }).eq('id', id)
@@ -229,25 +238,15 @@ export default function Properties() {
     mutationFn: async () => {
       const ids = [...selected]
       const BATCH = 50
-
-      // Process in batches to avoid Supabase request size limits
       for (let i = 0; i < ids.length; i += BATCH) {
         const chunk = ids.slice(i, i + BATCH)
-
-        // Get photos for this chunk
-        const { data: photos } = await supabase
-          .from('property_photos').select('storage_path').in('property_id', chunk)
+        const { data: photos } = await supabase.from('property_photos').select('storage_path').in('property_id', chunk)
         if (photos?.length) {
-          // Delete storage files in sub-batches of 20
-          for (let j = 0; j < photos.length; j += 20) {
-            await supabase.storage.from('photos')
-              .remove(photos.slice(j, j+20).map((p: any) => p.storage_path))
-          }
+          for (let j = 0; j < photos.length; j += 20)
+            await supabase.storage.from('photos').remove(photos.slice(j, j+20).map((p: any) => p.storage_path))
         }
-
         await supabase.from('property_photos').delete().in('property_id', chunk)
         await supabase.from('market_comps').delete().in('property_id', chunk)
-
         const { error } = await supabase.from('properties').delete().in('id', chunk)
         if (error) throw error
       }
@@ -260,79 +259,54 @@ export default function Properties() {
     onError: (e: any) => toast.error(e.message)
   })
 
-  const show = (col: string) => visibleCols.includes(col)
-  const hasFilters = filters.districtFilter.length || filters.parishFilter.length || filters.peritoFilter || filters.visitFilter || filters.billingFilter || filters.search
-
-  // Render cell value
   function cellVal(p: any, col: string) {
+    const isAbanca = ALL_COLUMNS[col]?.group === 'abanca'
+    const cls = isAbanca ? 'text-blue-700 whitespace-nowrap' : 'text-gray-600 whitespace-nowrap'
     switch(col) {
       case 'ref':              return <Link to={`/properties/${p.id}`} className="text-brand-600 hover:underline font-semibold whitespace-nowrap">{p.ref}</Link>
       case 'visit_status':     return <VisitBadge status={p.visit_status}/>
       case 'billing_status':   return <span className="text-gray-600 whitespace-nowrap">{BILLING_LABELS[p.billing_status]||'—'}</span>
       case 'fee_amount':       return <span className="font-medium text-gray-800 whitespace-nowrap">{p.fee_amount?formatCurrency(p.fee_amount):'—'}</span>
       case 'geo':              return p.latitude ? <span className="text-emerald-500">✓</span> : <span className="text-gray-300">—</span>
-      case 'street':           return <span className="text-gray-600 whitespace-nowrap max-w-[160px] truncate block">{p.street||p.address||'—'}</span>
-      case 'perito_avaliador': return (
-        <InlineEdit
-          value={p.perito_avaliador}
-          onSave={val => updatePerito.mutate({ id: p.id, value: val })}
-        />
-      )
-      case 'area_m2':          return <span className="text-gray-600 whitespace-nowrap">{p.area_m2?`${p.area_m2} m²`:'—'}</span>
-      case 'area_garage_m2':   return <span className="text-gray-600 whitespace-nowrap">{p.area_garage_m2?`${p.area_garage_m2} m²`:'—'}</span>
-      case 'area_annex_m2':    return <span className="text-gray-600 whitespace-nowrap">{p.area_annex_m2?`${p.area_annex_m2} m²`:'—'}</span>
-      case 'gross_area':       return <span className="text-gray-600 whitespace-nowrap">{p.gross_area?`${p.gross_area} m²`:'—'}</span>
-      case 'useful_area':      return <span className="text-gray-600 whitespace-nowrap">{p.useful_area?`${p.useful_area} m²`:'—'}</span>
-      case 'land_area':        return <span className="text-gray-600 whitespace-nowrap">{p.land_area?`${p.land_area} m²`:'—'}</span>
-      default:                 return <span className="text-gray-600 whitespace-nowrap">{(p as any)[col]||'—'}</span>
+      case 'perito_avaliador': return <InlineEdit value={p.perito_avaliador} onSave={val => updatePerito.mutate({ id:p.id, value:val })}/>
+      case 'area_m2':          return <span className={cls}>{p.area_m2?`${p.area_m2} m²`:'—'}</span>
+      case 'area_garage_m2':   return <span className={cls}>{p.area_garage_m2?`${p.area_garage_m2} m²`:'—'}</span>
+      case 'area_annex_m2':    return <span className={cls}>{p.area_annex_m2?`${p.area_annex_m2} m²`:'—'}</span>
+      case 'prev_valuation_value': return <span className={cls}>{p.prev_valuation_value?`€ ${p.prev_valuation_value}`:'—'}</span>
+      default:                 return <span className={cls}>{(p as any)[col]||'—'}</span>
     }
   }
 
+  const hasFilters = filters.districtFilter.length || filters.parishFilter.length || filters.peritoFilter || filters.visitFilter || filters.billingFilter || filters.search
+
   return (
     <div>
-      <PageHeader
-        title="Imóveis"
-        subtitle={`${filtered.length} de ${rows.length} registos`}
+      <PageHeader title="Imóveis" subtitle={`${filtered.length} de ${rows.length} registos`}
         actions={<ColumnPicker visible={visibleCols} onChange={setVisibleCols}/>}
       />
 
-      {/* Filters */}
       <div className="bg-white border-b border-gray-100 px-6 py-3 flex flex-wrap gap-2 items-center">
-        <input className="input max-w-[180px]" placeholder="Ref, morada, perito…"
-          value={filters.search} onChange={e => updateFilters({ search: e.target.value })}/>
-        <MultiSelect label="Distrito" options={districts} selected={filters.districtFilter}
-          onChange={v => updateFilters({ districtFilter: v, parishFilter: [] })}/>
-        <MultiSelect label="Freguesia" options={parishes} selected={filters.parishFilter}
-          onChange={v => updateFilters({ parishFilter: v })}/>
-        <select className="input max-w-[150px]" value={filters.peritoFilter}
-          onChange={e => updateFilters({ peritoFilter: e.target.value })}>
+        <input className="input max-w-[180px]" placeholder="Ref, morada, perito…" value={filters.search} onChange={e => updateFilters({ search: e.target.value })}/>
+        <MultiSelect label="Distrito"  options={districts} selected={filters.districtFilter} onChange={v => updateFilters({ districtFilter:v, parishFilter:[] })}/>
+        <MultiSelect label="Freguesia" options={parishes}  selected={filters.parishFilter}   onChange={v => updateFilters({ parishFilter:v })}/>
+        <select className="input max-w-[150px]" value={filters.peritoFilter} onChange={e => updateFilters({ peritoFilter:e.target.value })}>
           <option value="">Todos os peritos</option>
           {peritos.map(p => <option key={p}>{p}</option>)}
         </select>
-        <select className="input max-w-[150px]" value={filters.visitFilter}
-          onChange={e => updateFilters({ visitFilter: e.target.value })}>
+        <select className="input max-w-[150px]" value={filters.visitFilter} onChange={e => updateFilters({ visitFilter:e.target.value })}>
           <option value="">Estado visita</option>
           {Object.entries(VISIT_LABELS).map(([k,v]) => <option key={k} value={k}>{v}</option>)}
         </select>
-        <select className="input max-w-[160px]" value={filters.billingFilter}
-          onChange={e => updateFilters({ billingFilter: e.target.value })}>
+        <select className="input max-w-[160px]" value={filters.billingFilter} onChange={e => updateFilters({ billingFilter:e.target.value })}>
           <option value="">Estado financeiro</option>
           {Object.entries(BILLING_LABELS).map(([k,v]) => <option key={k} value={k}>{v}</option>)}
         </select>
-        {hasFilters && (
-          <button className="btn text-xs" onClick={() => {
-            clearFilters()
-            setFilters({ search:'', visitFilter:'', billingFilter:'', districtFilter:[], parishFilter:[], peritoFilter:'' })
-          }}>Limpar</button>
-        )}
+        {hasFilters && <button className="btn text-xs" onClick={() => { clearFilters(); setFilters({ search:'', visitFilter:'', billingFilter:'', districtFilter:[], parishFilter:[], peritoFilter:'' }) }}>Limpar</button>}
       </div>
 
-      {/* Bulk actions */}
       {selected.size > 0 && (
         <div className="bg-brand-50 border-b border-brand-100 px-6 py-2.5 flex items-center gap-3 flex-wrap">
           <span className="text-sm font-medium text-brand-700">{selected.size} seleccionados</span>
-
-          {/* Visit status */}
           <div className="flex items-center gap-1.5">
             <select className="input text-xs py-1 max-w-[155px]" value={bulkVisit} onChange={e => setBulkVisit(e.target.value)}>
               <option value="">Alterar visita…</option>
@@ -340,8 +314,6 @@ export default function Properties() {
             </select>
             {bulkVisit && <button className="btn btn-primary text-xs py-1" onClick={() => bulkUpdate.mutate({ field:'visit_status', value:bulkVisit })}>OK</button>}
           </div>
-
-          {/* Billing status */}
           <div className="flex items-center gap-1.5">
             <select className="input text-xs py-1 max-w-[155px]" value={bulkBilling} onChange={e => setBulkBilling(e.target.value)}>
               <option value="">Alterar faturação…</option>
@@ -349,30 +321,20 @@ export default function Properties() {
             </select>
             {bulkBilling && <button className="btn btn-primary text-xs py-1" onClick={() => bulkUpdate.mutate({ field:'billing_status', value:bulkBilling })}>OK</button>}
           </div>
-
-          {/* Perito bulk */}
           <div className="flex items-center gap-1.5">
             {!showBulkPerito
               ? <button className="btn text-xs py-1" onClick={() => setShowBulkPerito(true)}>Alterar perito…</button>
               : <>
-                  <input
-                    className="input text-xs py-1 w-40" placeholder="Nome do perito"
-                    value={bulkPerito} onChange={e => setBulkPerito(e.target.value)}
-                    list="peritos-bulk-list"
-                  />
-                  <datalist id="peritos-bulk-list">
-                    {peritos.map(p => <option key={p} value={p}/>)}
-                  </datalist>
+                  <input className="input text-xs py-1 w-40" placeholder="Nome do perito" value={bulkPerito} onChange={e => setBulkPerito(e.target.value)} list="peritos-bulk"/>
+                  <datalist id="peritos-bulk">{peritos.map(p => <option key={p} value={p}/>)}</datalist>
                   <button className="btn btn-primary text-xs py-1" onClick={() => bulkUpdate.mutate({ field:'perito_avaliador', value:bulkPerito })}>OK</button>
                   <button className="btn text-xs py-1" onClick={() => { setShowBulkPerito(false); setBulkPerito('') }}>✕</button>
                 </>
             }
           </div>
-
-          {/* Delete */}
           <button className="btn text-xs text-red-500 hover:bg-red-50 border-red-200 ml-auto"
-            onClick={() => { if (confirm(`Eliminar ${selected.size} imóveis permanentemente? Esta acção não pode ser desfeita.`)) bulkDelete.mutate() }}>
-            <Trash2 size={12}/> Eliminar {selected.size} imóveis
+            onClick={() => { if (confirm(`Eliminar ${selected.size} imóveis permanentemente?`)) bulkDelete.mutate() }}>
+            <Trash2 size={12}/> Eliminar {selected.size}
           </button>
           <button className="btn text-xs" onClick={() => setSelected(new Set())}>Cancelar</button>
         </div>
@@ -382,10 +344,9 @@ export default function Properties() {
         {isLoading ? <p className="text-sm text-gray-400">A carregar…</p>
           : grouped.length === 0 ? <EmptyState message="Nenhum imóvel encontrado."/>
           : grouped.map(([pid, { portfolio, items }]) => {
-            const isOpen    = !collapsed[pid]
-            const label     = portfolio ? `${portfolio.name}${portfolio.clients?.name ? ` — ${portfolio.clients.name}` : ''}` : 'Sem portfólio'
+            const isOpen      = !collapsed[pid]
+            const label       = portfolio ? `${portfolio.name}${portfolio.clients?.name ? ` — ${portfolio.clients.name}` : ''}` : 'Sem portfólio'
             const groupAllSel = items.every((i: any) => selected.has(i.id))
-
             return (
               <div key={pid} className="rounded-xl border border-gray-200 overflow-hidden">
                 <div className="flex items-center px-4 py-3 bg-gray-50 border-b border-gray-200 gap-2">
@@ -403,32 +364,41 @@ export default function Properties() {
                   <div className="overflow-x-auto">
                     <table className="w-full text-xs text-left border-collapse">
                       <thead>
-                        <tr className="bg-gray-50 border-b border-gray-200">
+                        <tr className="border-b border-gray-200">
                           <th className="sticky left-0 bg-gray-50 px-3 py-2 w-8 z-10">
                             <button onClick={selectAll} className="text-gray-400 hover:text-brand-500">
                               {selected.size === filtered.length && filtered.length > 0 ? <CheckSquare size={13} className="text-brand-400"/> : <Square size={13}/>}
                             </button>
                           </th>
-                          {visibleCols.map(col => (
-                            <th key={col} className={`px-3 py-2 font-semibold text-gray-600 whitespace-nowrap ${col==='ref'?'sticky left-8 bg-gray-50 z-10':''}`} style={{ minWidth: col==='street'?'160px':'80px' }}>
-                              {ALL_COLUMNS[col]}
-                            </th>
-                          ))}
+                          {visibleCols.map(col => {
+                            const def = ALL_COLUMNS[col]
+                            const isAbanca = def?.group === 'abanca'
+                            return (
+                              <th key={col}
+                                className={`px-3 py-2 font-semibold whitespace-nowrap ${col==='ref'?'sticky left-8 z-10':''} ${isAbanca?'bg-blue-50 text-blue-700':'bg-gray-50 text-gray-600'}`}
+                                style={{ minWidth: col==='street'||col==='ampliacao'?'160px':'80px' }}>
+                                {def?.label || col}
+                              </th>
+                            )
+                          })}
                         </tr>
                       </thead>
                       <tbody>
                         {items.map((p: any, idx: number) => (
-                          <tr key={p.id} className={`border-b border-gray-100 hover:bg-gray-50 ${selected.has(p.id)?'bg-brand-50':idx%2===0?'bg-white':'bg-gray-50/40'}`}>
+                          <tr key={p.id} className={`border-b border-gray-100 hover:bg-gray-50 ${selected.has(p.id)?'bg-brand-50':idx%2===0?'bg-white':'bg-gray-50/30'}`}>
                             <td className="sticky left-0 px-3 py-2 bg-inherit z-10">
                               <button onClick={() => toggleSelect(p.id)} className="text-gray-400 hover:text-brand-500">
                                 {selected.has(p.id) ? <CheckSquare size={13} className="text-brand-400"/> : <Square size={13}/>}
                               </button>
                             </td>
-                            {visibleCols.map(col => (
-                              <td key={col} className={`px-3 py-2 ${col==='ref'?'sticky left-8 bg-inherit z-10':''}`}>
-                                {cellVal(p, col)}
-                              </td>
-                            ))}
+                            {visibleCols.map(col => {
+                              const isAbanca = ALL_COLUMNS[col]?.group === 'abanca'
+                              return (
+                                <td key={col} className={`px-3 py-2 ${col==='ref'?'sticky left-8 bg-inherit z-10':''} ${isAbanca&&!selected.has(p.id)?'bg-blue-50/40':''}`}>
+                                  {cellVal(p, col)}
+                                </td>
+                              )
+                            })}
                           </tr>
                         ))}
                       </tbody>

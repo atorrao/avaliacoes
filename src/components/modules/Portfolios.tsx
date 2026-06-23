@@ -77,25 +77,24 @@ const ALIASES: Record<string, string> = {
   'fee':                            'fee_amount',
   'id registo predial':             'id_registo_predial',
   'id registo matricial':           'id_registo_matricial',
+  'nuc_riesgo':                     'nuc_risco',
+  'data de pedido':                 'data_pedido',
+  'tipo_reevaluacion':              'tipo_reavaliacao',
+  'tipovia':                        'tipo_via',
+  'escalera':                       'escada',
+  'ampliacion':                     'ampliacao',
+  'lugar':                          'lugar',
 }
 
 const NUMERIC = ['area_m2','gross_area','useful_area','land_area','area_garage_m2','area_annex_m2','year_built','fee_amount','prev_valuation_value']
 const FIELDS = [
-  // Identificação
   'external_ref','id_registo_predial','id_registo_matricial','fracao',
-  // Localização
   'street','number','block','floor_letter','address','parish','municipality','district','postal_code',
-  // Tipo
   'property_type','property_subtype','use_type','use_subtype','property_state','typology',
-  // Áreas
   'area_m2','gross_area','useful_area','land_area','area_garage_m2','area_annex_m2',
-  // Construção
-  'year_built','condition',
-  // Financeiro / responsável
-  'fee_amount','perito_avaliador',
-  // Avaliação anterior (campos ABANCA)
-  'prev_valuation_date','prev_valuation_value','prev_valuation_method',
-  'prev_valuation_expert','prev_valuation_entity',
+  'year_built','condition','fee_amount','perito_avaliador',
+  'prev_valuation_date','prev_valuation_value','prev_valuation_method','prev_valuation_expert','prev_valuation_entity',
+  'nuc_risco','data_pedido','tipo_reavaliacao','tipo_via','escada','ampliacao','lugar',
 ]
 
 function norm(s: string) { return s.toLowerCase().trim().normalize('NFD').replace(/[\u0300-\u036f]/g,'') }
@@ -202,6 +201,8 @@ function ImportPanel({ portfolioId, clientId, onClose, onDone }: { portfolioId:s
     'typology','year_built','condition','area_m2','gross_area','useful_area',
     'land_area','area_garage_m2','area_annex_m2','fee_amount',
     'perito_avaliador','id_registo_predial','id_registo_matricial',
+    'prev_valuation_date','prev_valuation_value','prev_valuation_method','prev_valuation_expert','prev_valuation_entity',
+    'nuc_risco','data_pedido','tipo_reavaliacao','tipo_via','escada','ampliacao','lugar',
   ])
 
   function sanitiseForDB(p: any) {
