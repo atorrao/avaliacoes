@@ -80,10 +80,49 @@ const ALIASES: Record<string, string> = {
   'fee':                           'fee_amount',
   'id registo predial':            'id_registo_predial',
   'id registo matricial':          'id_registo_matricial',
+  // ABANCA column names (exact match from Excel headers)
+  'nome_distrito':                 'district',
+  'nome_concelho':                 'municipality',
+  'tipo_bien':                     'property_type',
+  'subtipo_bien':                  'property_subtype',
+  'uso_bien':                      'use_type',
+  'subuso_bien':                   'use_subtype',
+  'estado_bien':                   'property_state',
+  'superficie_adoptada_finca':     'area_m2',
+  'superficie_adoptada_garaje':    'area_garage_m2',
+  'superficie_adoptada_trastero':  'area_annex_m2',
+  'calle':                         'street',
+  'numero':                        'number',
+  'piso':                          'floor_letter',
+  'codigo_postal':                 'postal_code',
+  'empresa_tasadora':              'prev_valuation_entity',
+  'fecha_tasacion':                'prev_valuation_date',
+  'tasacion':                      'prev_valuation_value',
+  'tipo_reevaluacion':             'property_subtype',
+  'avaliadora':                    'perito_avaliador',
+  'fraccion_fiscal':               'fracao',
+  'numero_registro_predial':       'id_registo_predial',
+  'artigo_matricial_fiscal':       'id_registo_matricial',
 }
 
-const NUMERIC = ['area_m2','gross_area','useful_area','land_area','area_garage_m2','area_annex_m2','year_built','fee_amount']
-const FIELDS  = ['external_ref','street','number','block','floor_letter','fracao','address','parish','municipality','district','postal_code','property_type','property_subtype','use_type','use_subtype','property_state','typology','area_m2','gross_area','useful_area','land_area','area_garage_m2','area_annex_m2','year_built','condition','fee_amount','perito_avaliador','id_registo_predial','id_registo_matricial']
+const NUMERIC = ['area_m2','gross_area','useful_area','land_area','area_garage_m2','area_annex_m2','year_built','fee_amount','prev_valuation_value']
+const FIELDS = [
+  // Identificação
+  'external_ref','id_registo_predial','id_registo_matricial','fracao',
+  // Localização
+  'street','number','block','floor_letter','address','parish','municipality','district','postal_code',
+  // Tipo
+  'property_type','property_subtype','use_type','use_subtype','property_state','typology',
+  // Áreas
+  'area_m2','gross_area','useful_area','land_area','area_garage_m2','area_annex_m2',
+  // Construção
+  'year_built','condition',
+  // Financeiro / responsável
+  'fee_amount','perito_avaliador',
+  // Avaliação anterior (campos ABANCA)
+  'prev_valuation_date','prev_valuation_value','prev_valuation_method',
+  'prev_valuation_expert','prev_valuation_entity',
+]
 
 function norm(s: string) { return s.toLowerCase().trim().normalize('NFD').replace(/[\u0300-\u036f]/g,'') }
 
