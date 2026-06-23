@@ -170,12 +170,39 @@ function ImportPanel({ portfolioId, clientId, onClose, onDone }: { portfolioId:s
         if (!field || !col) return  // skip empty keys
         const v = row[col]
         if (v !== null && v !== undefined && String(v).trim() !== '' && String(v) !== 'null') {
-          p[field] = NUMERIC.includes(field) ? (parseFloat(String(v).replace(',','.')) || null) : String(v).trim()
+          // Handle date fields: convert DD-MM-YYYY to YYYY-MM-DD
+          const DATE_FIELDS_SET = new Set(['data_pedido','prev_valuation_date','visit_date'])
+          if (DATE_FIELDS_SET.has(field)) {
+            const s = String(v).trim()
+            if (v instanceof Date || (typeof v === 'object' && v !== null)) {
+              const d = new Date(v)
+              p[field] = isNaN(d.getTime()) ? null : `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`
+            } else {
+              const m = s.match(/^(\d{1,2})[-\/](\d{1,2})[-\/](\d{4})$/)
+              if (m) p[field] = `${m[3]}-${m[2].padStart(2,'0')}-${m[1].padStart(2,'0')}`
+              else if (/^\d{4}-\d{2}-\d{2}$/.test(s)) p[field] = s
+              else p[field] = null
+            }
+          } else {
+            p[field] = NUMERIC.includes(field) ? (parseFloat(String(v).replace(',','.')) || null) : String(v).trim()
+          }
         }
       })
 
       if (feeRules.length && p.property_type && !p.fee_amount) {
-        const fee = calculateFee(p.property_type, p.area_m2 || p.gross_area, feeRules)
+        // Map ABANCA tipo_bien values to fee schedule activity names
+        const tipoMap: Record<string,string> = {
+          'APARTAMENTO': 'Apartamento', 'VIVIENDA': 'Apartamento',
+          'EDIFICIO': 'Habitação', 'HABITACION': 'Habitação',
+          'GARAGE': 'Garagem', 'TRASTERO': 'Arrumos',
+          'LOCAL COMERCIAL': 'Comércio', 'COMERCIAL': 'Comércio',
+          'OFICINA': 'Escritórios', 'OFICINAS': 'Escritórios',
+          'NAVE INDUSTRIAL': 'Naves industriais',
+          'TERRENO URBANO': 'Terreno urbano', 'TERRENO RUSTICO': 'Terreno rústico',
+          'MORADIA': 'Moradia', 'VIVENDA UNIFAMILIAR': 'Moradias unifamiliares',
+        }
+        const actType = tipoMap[p.property_type.toUpperCase()] || p.property_type
+        const fee = calculateFee(actType, p.area_m2 || p.gross_area, feeRules)
         if (fee) p.fee_amount = fee
       }
 

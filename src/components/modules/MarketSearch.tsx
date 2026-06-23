@@ -20,7 +20,7 @@ export default function MarketSearch() {
   const [selectedProperty, setSelectedProperty] = useState('')
   const [form, setForm] = useState({
     portal: 'Idealista', listing_ref: '', url: '',
-    typology: '', area_m2: '', price: '', listing_date: '', notes: ''
+    typology: '', area_m2: '', price: '', notes: ''
   })
 
   const { data: properties = [] } = useQuery({
@@ -59,7 +59,7 @@ export default function MarketSearch() {
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['all-comps', selectedProperty] })
       toast.success('Comparável adicionado')
-      setForm({ portal:'Idealista', listing_ref:'', url:'', typology:'', area_m2:'', price:'', listing_date:'', notes:'' })
+      setForm({ portal:'Idealista', listing_ref:'', url:'', typology:'', area_m2:'', price:'', notes:'' })
     },
     onError: (e: any) => toast.error(e.message)
   })
