@@ -51,7 +51,6 @@ export default function MarketSearch() {
         typology:     form.typology    || null,
         area_m2:      form.area_m2     ? parseFloat(form.area_m2)  : null,
         price:        form.price       ? parseFloat(form.price)    : null,
-        listing_date: form.listing_date || null,
         notes:        form.notes       || null,
       })
       if (error) throw error
@@ -147,7 +146,6 @@ export default function MarketSearch() {
             </div>
             <div>
               <label className="label">Data anúncio</label>
-              <input type="date" className="input" value={form.listing_date} onChange={e => setForm(f => ({...f, listing_date:e.target.value}))}/>
             </div>
             <div className="md:col-span-3">
               <label className="label">Notas</label>
@@ -200,7 +198,6 @@ export default function MarketSearch() {
                         <td>{c.area_m2 ? `${c.area_m2} m²` : '—'}</td>
                         <td>{c.price ? formatCurrency(c.price) : '—'}</td>
                         <td className="font-medium text-brand-600">{c.price_per_m2 ? `€ ${c.price_per_m2}` : '—'}</td>
-                        <td className="text-gray-400 text-xs">{c.listing_date ? formatDate(c.listing_date) : '—'}</td>
                         <td className="text-gray-500 text-xs max-w-[140px] truncate">{c.notes || '—'}</td>
                         <td>
                           <button className="text-red-400 hover:text-red-600" onClick={() => delComp.mutate(c.id)}>
