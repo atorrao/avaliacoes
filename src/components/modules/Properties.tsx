@@ -4,13 +4,17 @@ import { supabase } from '@/lib/supabase'
 import { PageHeader, VisitBadge, EmptyState } from '@/components/ui'
 import { Link } from 'react-router-dom'
 import { formatCurrency } from '@/lib/utils'
-import { ChevronDown, ChevronRight, Trash2, CheckSquare, Square } from 'lucide-react'
+import { ChevronDown, ChevronRight, Trash2, CheckSquare, Square, Eye, EyeOff, Pencil, Check, X } from 'lucide-react'
 import toast from 'react-hot-toast'
-import { getSavedFilters, saveFilters, clearFilters, type PropertyFilters } from '@/lib/userPrefs'
+import {
+  getSavedFilters, saveFilters, clearFilters, type PropertyFilters,
+  getSavedVisibleCols, saveVisibleCols, ALL_COLUMNS
+} from '@/lib/userPrefs'
 
 const VISIT_LABELS: Record<string,string>   = { pending:'Por visitar', scheduled:'Agendado', visited:'Visitado', report_done:'Report OK' }
 const BILLING_LABELS: Record<string,string> = { no_po:'Sem PO', awaiting_po:'A aguardar PO', po_received:'PO recebida', invoice_pending:'Fat. por emitir', invoice_issued:'Fat. emitida', paid:'Pago' }
 
+// ── Multi-select dropdown ─────────────────────────────────
 function MultiSelect({ label, options, selected, onChange }: { label:string; options:string[]; selected:string[]; onChange:(v:string[])=>void }) {
   const [open, setOpen] = useState(false)
   const ref = useRef<HTMLDivElement>(null)
@@ -45,25 +49,88 @@ function MultiSelect({ label, options, selected, onChange }: { label:string; opt
   )
 }
 
+// ── Column picker dropdown ────────────────────────────────
+function ColumnPicker({ visible, onChange }: { visible:string[]; onChange:(v:string[])=>void }) {
+  const [open, setOpen] = useState(false)
+  const ref = useRef<HTMLDivElement>(null)
+  useEffect(() => {
+    function h(e: MouseEvent) { if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false) }
+    document.addEventListener('mousedown', h); return () => document.removeEventListener('mousedown', h)
+  }, [])
+  function toggle(col: string) {
+    const next = visible.includes(col) ? visible.filter(c => c !== col) : [...visible, col]
+    onChange(next)
+    saveVisibleCols(next)
+  }
+  return (
+    <div ref={ref} className="relative">
+      <button className="btn flex items-center gap-1.5" onClick={() => setOpen(o => !o)}>
+        <Eye size={13}/> Colunas ({visible.length})
+      </button>
+      {open && (
+        <div className="absolute top-full right-0 mt-1 bg-white border border-gray-200 rounded-lg shadow-xl z-50 w-64 max-h-80 overflow-y-auto">
+          <div className="px-3 py-2 border-b border-gray-100 flex items-center justify-between">
+            <span className="text-xs font-semibold text-gray-600">Colunas visíveis</span>
+            <div className="flex gap-2">
+              <button className="text-xs text-brand-500 hover:underline" onClick={() => { const all = Object.keys(ALL_COLUMNS); onChange(all); saveVisibleCols(all) }}>Todas</button>
+              <button className="text-xs text-gray-400 hover:underline" onClick={() => { const min = ['ref','visit_status','billing_status','fee_amount']; onChange(min); saveVisibleCols(min) }}>Mínimo</button>
+            </div>
+          </div>
+          {Object.entries(ALL_COLUMNS).map(([col, label]) => (
+            <button key={col} className="w-full text-left px-3 py-2 text-sm hover:bg-gray-50 flex items-center gap-2" onClick={() => toggle(col)}>
+              {visible.includes(col)
+                ? <Eye size={13} className="text-brand-400 flex-shrink-0"/>
+                : <EyeOff size={13} className="text-gray-300 flex-shrink-0"/>
+              }
+              <span className={visible.includes(col) ? 'text-gray-800' : 'text-gray-400'}>{label}</span>
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
+  )
+}
+
+// ── Inline editable cell ──────────────────────────────────
+function InlineEdit({ value, onSave, placeholder = '—' }: { value:string|null; onSave:(v:string)=>void; placeholder?:string }) {
+  const [editing, setEditing] = useState(false)
+  const [val, setVal]         = useState(value || '')
+  useEffect(() => setVal(value || ''), [value])
+  if (!editing) return (
+    <div className="flex items-center gap-1 group cursor-pointer whitespace-nowrap" onClick={() => setEditing(true)}>
+      <span className={value ? 'text-gray-600' : 'text-gray-300'}>{value || placeholder}</span>
+      <Pencil size={10} className="opacity-0 group-hover:opacity-100 text-gray-400 flex-shrink-0"/>
+    </div>
+  )
+  return (
+    <div className="flex items-center gap-1" onClick={e => e.stopPropagation()}>
+      <input
+        className="border border-brand-300 rounded px-1 py-0.5 text-xs w-28 focus:outline-none focus:ring-1 focus:ring-brand-400"
+        value={val} onChange={e => setVal(e.target.value)} autoFocus
+        onKeyDown={e => { if (e.key==='Enter') { onSave(val); setEditing(false) } if (e.key==='Escape') setEditing(false) }}
+      />
+      <button onClick={() => { onSave(val); setEditing(false) }} className="text-emerald-500 hover:text-emerald-600"><Check size={12}/></button>
+      <button onClick={() => { setVal(value||''); setEditing(false) }} className="text-gray-400 hover:text-gray-600"><X size={12}/></button>
+    </div>
+  )
+}
+
+// ── Main component ────────────────────────────────────────
 export default function Properties() {
   const qc = useQueryClient()
 
-  // Load saved filters on mount
-  const [filters, setFilters] = useState<PropertyFilters>(getSavedFilters)
-
-  // Persist filters on every change
-  function updateFilters(partial: Partial<PropertyFilters>) {
-    setFilters(prev => {
-      const next = { ...prev, ...partial }
-      saveFilters(next)
-      return next
-    })
-  }
-
-  const [collapsed, setCollapsed] = useState<Record<string,boolean>>({})
-  const [selected,  setSelected]  = useState<Set<string>>(new Set())
+  const [filters,     setFilters]     = useState<PropertyFilters>(getSavedFilters)
+  const [visibleCols, setVisibleCols] = useState<string[]>(getSavedVisibleCols)
+  const [collapsed,   setCollapsed]   = useState<Record<string,boolean>>({})
+  const [selected,    setSelected]    = useState<Set<string>>(new Set())
   const [bulkVisit,   setBulkVisit]   = useState('')
   const [bulkBilling, setBulkBilling] = useState('')
+  const [bulkPerito,  setBulkPerito]  = useState('')
+  const [showBulkPerito, setShowBulkPerito] = useState(false)
+
+  function updateFilters(partial: Partial<PropertyFilters>) {
+    setFilters(prev => { const next = {...prev,...partial}; saveFilters(next); return next })
+  }
 
   const { data: rows = [], isLoading } = useQuery({
     queryKey: ['properties-all'],
@@ -96,15 +163,15 @@ export default function Properties() {
   const peritos = useMemo(() => [...new Set(rows.map((r: any) => r.perito_avaliador).filter(Boolean))].sort(), [rows])
 
   const filtered = useMemo(() => rows.filter((r: any) => {
-    if (filters.visitFilter                    && r.visit_status     !== filters.visitFilter)          return false
-    if (filters.billingFilter                  && r.billing_status   !== filters.billingFilter)         return false
-    if (filters.districtFilter.length          && !filters.districtFilter.includes(r.district))         return false
-    if (filters.parishFilter.length            && !filters.parishFilter.includes(r.parish))             return false
-    if (filters.peritoFilter                   && r.perito_avaliador !== filters.peritoFilter)           return false
+    if (filters.visitFilter    && r.visit_status     !== filters.visitFilter)    return false
+    if (filters.billingFilter  && r.billing_status   !== filters.billingFilter)  return false
+    if (filters.districtFilter.length && !filters.districtFilter.includes(r.district)) return false
+    if (filters.parishFilter.length   && !filters.parishFilter.includes(r.parish))     return false
+    if (filters.peritoFilter   && r.perito_avaliador !== filters.peritoFilter)   return false
     if (filters.search) {
       const s = filters.search.toLowerCase()
-      return [r.ref, r.external_ref, r.address, r.street, r.municipality, r.district,
-              r.parish, r.typology, r.property_type, r.perito_avaliador, r.postal_code]
+      return [r.ref, r.external_ref, r.address, r.street, r.municipality,
+              r.district, r.parish, r.typology, r.property_type, r.perito_avaliador]
         .some(v => v?.toLowerCase().includes(s))
     }
     return true
@@ -132,15 +199,29 @@ export default function Properties() {
     setSelected(prev => prev.size === allIds.length ? new Set() : new Set(allIds))
   }
 
+  // Inline perito update
+  const updatePerito = useMutation({
+    mutationFn: async ({ id, value }: { id:string; value:string }) => {
+      const { error } = await supabase.from('properties').update({ perito_avaliador: value||null }).eq('id', id)
+      if (error) throw error
+    },
+    onSuccess: () => qc.invalidateQueries({ queryKey:['properties-all'] }),
+    onError: (e: any) => toast.error(e.message)
+  })
+
   const bulkUpdate = useMutation({
     mutationFn: async ({ field, value }: { field:string; value:string }) => {
       const ids = [...selected]
       for (let i = 0; i < ids.length; i += 50) {
-        const { error } = await supabase.from('properties').update({ [field]: value }).in('id', ids.slice(i, i+50))
+        const { error } = await supabase.from('properties').update({ [field]: value||null }).in('id', ids.slice(i, i+50))
         if (error) throw error
       }
     },
-    onSuccess: () => { qc.invalidateQueries({ queryKey:['properties-all'] }); toast.success(`${selected.size} actualizados`); setSelected(new Set()); setBulkVisit(''); setBulkBilling('') },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey:['properties-all'] })
+      toast.success(`${selected.size} actualizados`)
+      setSelected(new Set()); setBulkVisit(''); setBulkBilling(''); setBulkPerito(''); setShowBulkPerito(false)
+    },
     onError: (e: any) => toast.error(e.message)
   })
 
@@ -154,15 +235,49 @@ export default function Properties() {
       const { error } = await supabase.from('properties').delete().in('id', ids)
       if (error) throw error
     },
-    onSuccess: () => { qc.invalidateQueries({ queryKey:['properties-all'] }); toast.success(`${selected.size} eliminados`); setSelected(new Set()) },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey:['properties-all'] })
+      toast.success(`${selected.size} imóveis eliminados`)
+      setSelected(new Set())
+    },
     onError: (e: any) => toast.error(e.message)
   })
 
+  const show = (col: string) => visibleCols.includes(col)
   const hasFilters = filters.districtFilter.length || filters.parishFilter.length || filters.peritoFilter || filters.visitFilter || filters.billingFilter || filters.search
+
+  // Render cell value
+  function cellVal(p: any, col: string) {
+    switch(col) {
+      case 'ref':              return <Link to={`/properties/${p.id}`} className="text-brand-600 hover:underline font-semibold whitespace-nowrap">{p.ref}</Link>
+      case 'visit_status':     return <VisitBadge status={p.visit_status}/>
+      case 'billing_status':   return <span className="text-gray-600 whitespace-nowrap">{BILLING_LABELS[p.billing_status]||'—'}</span>
+      case 'fee_amount':       return <span className="font-medium text-gray-800 whitespace-nowrap">{p.fee_amount?formatCurrency(p.fee_amount):'—'}</span>
+      case 'geo':              return p.latitude ? <span className="text-emerald-500">✓</span> : <span className="text-gray-300">—</span>
+      case 'street':           return <span className="text-gray-600 whitespace-nowrap max-w-[160px] truncate block">{p.street||p.address||'—'}</span>
+      case 'perito_avaliador': return (
+        <InlineEdit
+          value={p.perito_avaliador}
+          onSave={val => updatePerito.mutate({ id: p.id, value: val })}
+        />
+      )
+      case 'area_m2':          return <span className="text-gray-600 whitespace-nowrap">{p.area_m2?`${p.area_m2} m²`:'—'}</span>
+      case 'area_garage_m2':   return <span className="text-gray-600 whitespace-nowrap">{p.area_garage_m2?`${p.area_garage_m2} m²`:'—'}</span>
+      case 'area_annex_m2':    return <span className="text-gray-600 whitespace-nowrap">{p.area_annex_m2?`${p.area_annex_m2} m²`:'—'}</span>
+      case 'gross_area':       return <span className="text-gray-600 whitespace-nowrap">{p.gross_area?`${p.gross_area} m²`:'—'}</span>
+      case 'useful_area':      return <span className="text-gray-600 whitespace-nowrap">{p.useful_area?`${p.useful_area} m²`:'—'}</span>
+      case 'land_area':        return <span className="text-gray-600 whitespace-nowrap">{p.land_area?`${p.land_area} m²`:'—'}</span>
+      default:                 return <span className="text-gray-600 whitespace-nowrap">{(p as any)[col]||'—'}</span>
+    }
+  }
 
   return (
     <div>
-      <PageHeader title="Imóveis" subtitle={`${filtered.length} de ${rows.length} registos`}/>
+      <PageHeader
+        title="Imóveis"
+        subtitle={`${filtered.length} de ${rows.length} registos`}
+        actions={<ColumnPicker visible={visibleCols} onChange={setVisibleCols}/>}
+      />
 
       {/* Filters */}
       <div className="bg-white border-b border-gray-100 px-6 py-3 flex flex-wrap gap-2 items-center">
@@ -188,9 +303,10 @@ export default function Properties() {
           {Object.entries(BILLING_LABELS).map(([k,v]) => <option key={k} value={k}>{v}</option>)}
         </select>
         {hasFilters && (
-          <button className="btn text-xs" onClick={() => { clearFilters(); setFilters({ search:'', visitFilter:'', billingFilter:'', districtFilter:[], parishFilter:[], peritoFilter:'' }) }}>
-            Limpar
-          </button>
+          <button className="btn text-xs" onClick={() => {
+            clearFilters()
+            setFilters({ search:'', visitFilter:'', billingFilter:'', districtFilter:[], parishFilter:[], peritoFilter:'' })
+          }}>Limpar</button>
         )}
       </div>
 
@@ -198,23 +314,48 @@ export default function Properties() {
       {selected.size > 0 && (
         <div className="bg-brand-50 border-b border-brand-100 px-6 py-2.5 flex items-center gap-3 flex-wrap">
           <span className="text-sm font-medium text-brand-700">{selected.size} seleccionados</span>
-          <div className="flex items-center gap-2">
-            <select className="input text-xs py-1 max-w-[160px]" value={bulkVisit} onChange={e => setBulkVisit(e.target.value)}>
-              <option value="">Alterar estado visita…</option>
+
+          {/* Visit status */}
+          <div className="flex items-center gap-1.5">
+            <select className="input text-xs py-1 max-w-[155px]" value={bulkVisit} onChange={e => setBulkVisit(e.target.value)}>
+              <option value="">Alterar visita…</option>
               {Object.entries(VISIT_LABELS).map(([k,v]) => <option key={k} value={k}>{v}</option>)}
             </select>
-            {bulkVisit && <button className="btn btn-primary text-xs py-1" onClick={() => bulkUpdate.mutate({ field:'visit_status', value:bulkVisit })}>Aplicar</button>}
+            {bulkVisit && <button className="btn btn-primary text-xs py-1" onClick={() => bulkUpdate.mutate({ field:'visit_status', value:bulkVisit })}>OK</button>}
           </div>
-          <div className="flex items-center gap-2">
-            <select className="input text-xs py-1 max-w-[160px]" value={bulkBilling} onChange={e => setBulkBilling(e.target.value)}>
+
+          {/* Billing status */}
+          <div className="flex items-center gap-1.5">
+            <select className="input text-xs py-1 max-w-[155px]" value={bulkBilling} onChange={e => setBulkBilling(e.target.value)}>
               <option value="">Alterar faturação…</option>
               {Object.entries(BILLING_LABELS).map(([k,v]) => <option key={k} value={k}>{v}</option>)}
             </select>
-            {bulkBilling && <button className="btn btn-primary text-xs py-1" onClick={() => bulkUpdate.mutate({ field:'billing_status', value:bulkBilling })}>Aplicar</button>}
+            {bulkBilling && <button className="btn btn-primary text-xs py-1" onClick={() => bulkUpdate.mutate({ field:'billing_status', value:bulkBilling })}>OK</button>}
           </div>
+
+          {/* Perito bulk */}
+          <div className="flex items-center gap-1.5">
+            {!showBulkPerito
+              ? <button className="btn text-xs py-1" onClick={() => setShowBulkPerito(true)}>Alterar perito…</button>
+              : <>
+                  <input
+                    className="input text-xs py-1 w-40" placeholder="Nome do perito"
+                    value={bulkPerito} onChange={e => setBulkPerito(e.target.value)}
+                    list="peritos-bulk-list"
+                  />
+                  <datalist id="peritos-bulk-list">
+                    {peritos.map(p => <option key={p} value={p}/>)}
+                  </datalist>
+                  <button className="btn btn-primary text-xs py-1" onClick={() => bulkUpdate.mutate({ field:'perito_avaliador', value:bulkPerito })}>OK</button>
+                  <button className="btn text-xs py-1" onClick={() => { setShowBulkPerito(false); setBulkPerito('') }}>✕</button>
+                </>
+            }
+          </div>
+
+          {/* Delete */}
           <button className="btn text-xs text-red-500 hover:bg-red-50 border-red-200 ml-auto"
-            onClick={() => { if (confirm(`Eliminar ${selected.size} imóveis?`)) bulkDelete.mutate() }}>
-            <Trash2 size={12}/> Eliminar
+            onClick={() => { if (confirm(`Eliminar ${selected.size} imóveis permanentemente? Esta acção não pode ser desfeita.`)) bulkDelete.mutate() }}>
+            <Trash2 size={12}/> Eliminar {selected.size} imóveis
           </button>
           <button className="btn text-xs" onClick={() => setSelected(new Set())}>Cancelar</button>
         </div>
@@ -243,7 +384,7 @@ export default function Properties() {
 
                 {isOpen && (
                   <div className="overflow-x-auto">
-                    <table className="w-full text-xs text-left border-collapse" style={{ minWidth:'2400px' }}>
+                    <table className="w-full text-xs text-left border-collapse">
                       <thead>
                         <tr className="bg-gray-50 border-b border-gray-200">
                           <th className="sticky left-0 bg-gray-50 px-3 py-2 w-8 z-10">
@@ -251,91 +392,26 @@ export default function Properties() {
                               {selected.size === filtered.length && filtered.length > 0 ? <CheckSquare size={13} className="text-brand-400"/> : <Square size={13}/>}
                             </button>
                           </th>
-                          <th className="sticky left-8 bg-gray-50 px-3 py-2 font-semibold text-gray-600 whitespace-nowrap z-10 min-w-[90px]">Ref.</th>
-                          <th className="px-3 py-2 font-semibold text-gray-600 whitespace-nowrap min-w-[110px]">Ref. externa</th>
-                          <th className="px-3 py-2 font-semibold text-gray-600 whitespace-nowrap min-w-[80px]">Reg. Predial</th>
-                          <th className="px-3 py-2 font-semibold text-gray-600 whitespace-nowrap min-w-[80px]">Reg. Matricial</th>
-                          <th className="px-3 py-2 font-semibold text-gray-600 whitespace-nowrap min-w-[70px]">Fracção</th>
-                          <th className="px-3 py-2 font-semibold text-gray-600 whitespace-nowrap min-w-[160px]">Rua</th>
-                          <th className="px-3 py-2 font-semibold text-gray-600 whitespace-nowrap min-w-[50px]">Nº</th>
-                          <th className="px-3 py-2 font-semibold text-gray-600 whitespace-nowrap min-w-[60px]">Bloco</th>
-                          <th className="px-3 py-2 font-semibold text-gray-600 whitespace-nowrap min-w-[60px]">Piso/Letra</th>
-                          <th className="px-3 py-2 font-semibold text-gray-600 whitespace-nowrap min-w-[90px]">Cód. Postal</th>
-                          <th className="px-3 py-2 font-semibold text-gray-600 whitespace-nowrap min-w-[100px]">Freguesia</th>
-                          <th className="px-3 py-2 font-semibold text-gray-600 whitespace-nowrap min-w-[100px]">Concelho</th>
-                          <th className="px-3 py-2 font-semibold text-gray-600 whitespace-nowrap min-w-[100px]">Distrito</th>
-                          <th className="px-3 py-2 font-semibold text-gray-600 whitespace-nowrap min-w-[110px]">Tipo de Bem</th>
-                          <th className="px-3 py-2 font-semibold text-gray-600 whitespace-nowrap min-w-[110px]">Subtipo</th>
-                          <th className="px-3 py-2 font-semibold text-gray-600 whitespace-nowrap min-w-[90px]">Uso</th>
-                          <th className="px-3 py-2 font-semibold text-gray-600 whitespace-nowrap min-w-[90px]">Subuso</th>
-                          <th className="px-3 py-2 font-semibold text-gray-600 whitespace-nowrap min-w-[90px]">Estado Bem</th>
-                          <th className="px-3 py-2 font-semibold text-gray-600 whitespace-nowrap min-w-[80px]">Tipologia</th>
-                          <th className="px-3 py-2 font-semibold text-gray-600 whitespace-nowrap min-w-[80px]">Ano Const.</th>
-                          <th className="px-3 py-2 font-semibold text-gray-600 whitespace-nowrap min-w-[80px]">m² (N)</th>
-                          <th className="px-3 py-2 font-semibold text-gray-600 whitespace-nowrap min-w-[80px]">m² Garagem</th>
-                          <th className="px-3 py-2 font-semibold text-gray-600 whitespace-nowrap min-w-[80px]">m² Anexo</th>
-                          <th className="px-3 py-2 font-semibold text-gray-600 whitespace-nowrap min-w-[80px]">Área bruta</th>
-                          <th className="px-3 py-2 font-semibold text-gray-600 whitespace-nowrap min-w-[80px]">Área útil</th>
-                          <th className="px-3 py-2 font-semibold text-gray-600 whitespace-nowrap min-w-[80px]">Terreno</th>
-                          <th className="px-3 py-2 font-semibold text-gray-600 whitespace-nowrap min-w-[130px]">Perito Avaliador</th>
-                          <th className="px-3 py-2 font-semibold text-gray-600 whitespace-nowrap min-w-[110px]">Estado visita</th>
-                          <th className="px-3 py-2 font-semibold text-gray-600 whitespace-nowrap min-w-[90px]">Data visita</th>
-                          <th className="px-3 py-2 font-semibold text-gray-600 whitespace-nowrap min-w-[130px]">Est. faturação</th>
-                          <th className="px-3 py-2 font-semibold text-gray-600 whitespace-nowrap min-w-[100px]">Honorário</th>
-                          <th className="px-3 py-2 font-semibold text-gray-600 whitespace-nowrap min-w-[90px]">Nº PO</th>
-                          <th className="px-3 py-2 font-semibold text-gray-600 whitespace-nowrap min-w-[90px]">Nº Fatura</th>
-                          <th className="px-3 py-2 font-semibold text-gray-600 whitespace-nowrap min-w-[90px]">Dt. Pagamento</th>
-                          <th className="px-3 py-2 font-semibold text-gray-600 whitespace-nowrap min-w-[50px]">Geo</th>
+                          {visibleCols.map(col => (
+                            <th key={col} className={`px-3 py-2 font-semibold text-gray-600 whitespace-nowrap ${col==='ref'?'sticky left-8 bg-gray-50 z-10':''}`} style={{ minWidth: col==='street'?'160px':'80px' }}>
+                              {ALL_COLUMNS[col]}
+                            </th>
+                          ))}
                         </tr>
                       </thead>
                       <tbody>
                         {items.map((p: any, idx: number) => (
-                          <tr key={p.id} className={`border-b border-gray-100 hover:bg-gray-50 ${selected.has(p.id) ? 'bg-brand-50' : idx%2===0 ? 'bg-white' : 'bg-gray-50/40'}`}>
+                          <tr key={p.id} className={`border-b border-gray-100 hover:bg-gray-50 ${selected.has(p.id)?'bg-brand-50':idx%2===0?'bg-white':'bg-gray-50/40'}`}>
                             <td className="sticky left-0 px-3 py-2 bg-inherit z-10">
                               <button onClick={() => toggleSelect(p.id)} className="text-gray-400 hover:text-brand-500">
                                 {selected.has(p.id) ? <CheckSquare size={13} className="text-brand-400"/> : <Square size={13}/>}
                               </button>
                             </td>
-                            <td className="sticky left-8 px-3 py-2 bg-inherit z-10">
-                              <Link to={`/properties/${p.id}`} className="text-brand-600 hover:underline font-semibold whitespace-nowrap">{p.ref}</Link>
-                            </td>
-                            <td className="px-3 py-2 text-gray-600 whitespace-nowrap">{p.external_ref||'—'}</td>
-                            <td className="px-3 py-2 text-gray-600 whitespace-nowrap">{p.id_registo_predial||'—'}</td>
-                            <td className="px-3 py-2 text-gray-600 whitespace-nowrap">{p.id_registo_matricial||'—'}</td>
-                            <td className="px-3 py-2 text-gray-600 whitespace-nowrap">{p.fracao||'—'}</td>
-                            <td className="px-3 py-2 text-gray-600 whitespace-nowrap max-w-[160px] truncate">{p.street||p.address||'—'}</td>
-                            <td className="px-3 py-2 text-gray-600 whitespace-nowrap">{p.number||'—'}</td>
-                            <td className="px-3 py-2 text-gray-600 whitespace-nowrap">{p.block||'—'}</td>
-                            <td className="px-3 py-2 text-gray-600 whitespace-nowrap">{p.floor_letter||'—'}</td>
-                            <td className="px-3 py-2 text-gray-600 whitespace-nowrap">{p.postal_code||'—'}</td>
-                            <td className="px-3 py-2 text-gray-600 whitespace-nowrap">{p.parish||'—'}</td>
-                            <td className="px-3 py-2 text-gray-600 whitespace-nowrap">{p.municipality||'—'}</td>
-                            <td className="px-3 py-2 text-gray-600 whitespace-nowrap">{p.district||'—'}</td>
-                            <td className="px-3 py-2 text-gray-600 whitespace-nowrap">{p.property_type||'—'}</td>
-                            <td className="px-3 py-2 text-gray-600 whitespace-nowrap">{p.property_subtype||'—'}</td>
-                            <td className="px-3 py-2 text-gray-600 whitespace-nowrap">{p.use_type||'—'}</td>
-                            <td className="px-3 py-2 text-gray-600 whitespace-nowrap">{p.use_subtype||'—'}</td>
-                            <td className="px-3 py-2 text-gray-600 whitespace-nowrap">{p.property_state||'—'}</td>
-                            <td className="px-3 py-2 text-gray-600 whitespace-nowrap">{p.typology||'—'}</td>
-                            <td className="px-3 py-2 text-gray-600 whitespace-nowrap">{p.year_built||'—'}</td>
-                            <td className="px-3 py-2 text-gray-600 whitespace-nowrap">{p.area_m2?`${p.area_m2} m²`:'—'}</td>
-                            <td className="px-3 py-2 text-gray-600 whitespace-nowrap">{p.area_garage_m2?`${p.area_garage_m2} m²`:'—'}</td>
-                            <td className="px-3 py-2 text-gray-600 whitespace-nowrap">{p.area_annex_m2?`${p.area_annex_m2} m²`:'—'}</td>
-                            <td className="px-3 py-2 text-gray-600 whitespace-nowrap">{p.gross_area?`${p.gross_area} m²`:'—'}</td>
-                            <td className="px-3 py-2 text-gray-600 whitespace-nowrap">{p.useful_area?`${p.useful_area} m²`:'—'}</td>
-                            <td className="px-3 py-2 text-gray-600 whitespace-nowrap">{p.land_area?`${p.land_area} m²`:'—'}</td>
-                            <td className="px-3 py-2 text-gray-500 whitespace-nowrap">{p.perito_avaliador||'—'}</td>
-                            <td className="px-3 py-2 whitespace-nowrap"><VisitBadge status={p.visit_status}/></td>
-                            <td className="px-3 py-2 text-gray-500 whitespace-nowrap">{p.visit_date||'—'}</td>
-                            {/* Billing status — plain text, no badge */}
-                            <td className="px-3 py-2 text-gray-600 whitespace-nowrap">{BILLING_LABELS[p.billing_status]||p.billing_status||'—'}</td>
-                            <td className="px-3 py-2 whitespace-nowrap font-medium text-gray-800">{p.fee_amount?formatCurrency(p.fee_amount):'—'}</td>
-                            <td className="px-3 py-2 text-gray-500 whitespace-nowrap">{p.po_number||'—'}</td>
-                            <td className="px-3 py-2 text-gray-500 whitespace-nowrap">{p.invoice_number||'—'}</td>
-                            <td className="px-3 py-2 text-gray-500 whitespace-nowrap">{p.payment_date||'—'}</td>
-                            <td className="px-3 py-2 whitespace-nowrap">
-                              {p.latitude ? <span className="text-emerald-500">✓</span> : <span className="text-gray-300">—</span>}
-                            </td>
+                            {visibleCols.map(col => (
+                              <td key={col} className={`px-3 py-2 ${col==='ref'?'sticky left-8 bg-inherit z-10':''}`}>
+                                {cellVal(p, col)}
+                              </td>
+                            ))}
                           </tr>
                         ))}
                       </tbody>

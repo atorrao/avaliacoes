@@ -10,30 +10,89 @@ import { calculateFee } from '@/lib/feeCalculator'
 import { CheckCircle, AlertCircle } from 'lucide-react'
 
 const ALIASES: Record<string, string> = {
-  'referencia':'external_ref','ref':'external_ref','id':'external_ref','codigo':'external_ref','bem':'external_ref','n bem':'external_ref','nr bem':'external_ref',
-  'rua':'street','street':'street','numero':'number','bloco':'block','letra':'floor_letter','fraccao':'fracao','fracao':'fracao',
-  'morada':'address','endereco':'address','address':'address','freguesia':'parish','parish':'parish',
-  'concelho':'municipality','municipio':'municipality','municipality':'municipality',
-  'distrito':'district','district':'district','codigo postal':'postal_code','cp':'postal_code','cod postal':'postal_code',
-  'tipo de bem':'property_type','tipo':'property_type','subtipo':'property_subtype','subtipo de bem':'property_subtype',
-  'uso':'use_type','uso do bem':'use_type','subuso':'use_subtype','estado do bem':'property_state','estado':'property_state',
-  'tipologia':'typology','m2':'area_m2','area m2':'area_m2','area':'area_m2','area bruta':'gross_area',
-  'm2 garagem':'area_garage_m2','m2 anexo':'area_annex_m2','area util':'useful_area','area terreno':'land_area',
-  'perito avaliador':'perito_avaliador','perito':'perito_avaliador','avaliador':'perito_avaliador','responsavel':'perito_avaliador',
-  'honorario':'fee_amount','fee':'fee_amount','id registo predial':'id_registo_predial','id registo matricial':'id_registo_matricial',
+  // ABANCA specific — must match exactly including spaces/accents
+  'id_bien':                       'external_ref',
+  'referência ':                   'external_ref',
+  'referência':                    'external_ref',
+  'referencia ':                   'external_ref',
+  'referencia':                    'external_ref',
+  // Generic
+  'ref':                           'external_ref',
+  'id':                            'external_ref',
+  'codigo':                        'external_ref',
+  'bem':                           'external_ref',
+  'n bem':                         'external_ref',
+  'nr bem':                        'external_ref',
+  // ABANCA location fields
+  'nome_distrito':                 'district',
+  'nome_concelho':                 'municipality',
+  'freguesia':                     'parish',
+  'tipo_bien':                     'property_type',
+  'subtipo_bien':                  'property_subtype',
+  'uso_bien':                      'use_type',
+  'subuso_bien':                   'use_subtype',
+  'estado_bien':                   'property_state',
+  'superficie_adoptada_finca':     'area_m2',
+  'superficie_adoptada_garaje':    'area_garage_m2',
+  'superficie_adoptada_trastero':  'area_annex_m2',
+  'calle':                         'street',
+  'numero':                        'number',
+  'bloco':                         'block',
+  'piso':                          'floor_letter',
+  'letra':                         'letter',
+  'codigo_postal':                 'postal_code',
+  'avaliadora':                    'perito_avaliador',
+  'tasadora':                      'perito_avaliador',
+  'numero_registro_predial':       'id_registo_predial',
+  'artigo_matricial_fiscal':       'id_registo_matricial',
+  'fraccion_fiscal':               'fracao',
+  // Generic aliases
+  'rua':                           'street',
+  'morada':                        'address',
+  'endereco':                      'address',
+  'address':                       'address',
+  'concelho':                      'municipality',
+  'municipio':                     'municipality',
+  'municipality':                  'municipality',
+  'distrito':                      'district',
+  'district':                      'district',
+  'cp':                            'postal_code',
+  'cod postal':                    'postal_code',
+  'tipo de bem':                   'property_type',
+  'tipo':                          'property_type',
+  'subtipo':                       'property_subtype',
+  'uso':                           'use_type',
+  'subuso':                        'use_subtype',
+  'estado do bem':                 'property_state',
+  'tipologia':                     'typology',
+  'm2':                            'area_m2',
+  'area m2':                       'area_m2',
+  'area bruta':                    'gross_area',
+  'm2 garagem':                    'area_garage_m2',
+  'm2 anexo':                      'area_annex_m2',
+  'area util':                     'useful_area',
+  'area terreno':                  'land_area',
+  'perito avaliador':              'perito_avaliador',
+  'perito':                        'perito_avaliador',
+  'avaliador':                     'perito_avaliador',
+  'responsavel':                   'perito_avaliador',
+  'honorario':                     'fee_amount',
+  'fee':                           'fee_amount',
+  'id registo predial':            'id_registo_predial',
+  'id registo matricial':          'id_registo_matricial',
 }
-const NUMERIC = ['area_m2','gross_area','useful_area','land_area','area_garage_m2','area_annex_m2','floor','year_built','fee_amount']
+
+const NUMERIC = ['area_m2','gross_area','useful_area','land_area','area_garage_m2','area_annex_m2','year_built','fee_amount']
 const FIELDS  = ['external_ref','street','number','block','floor_letter','fracao','address','parish','municipality','district','postal_code','property_type','property_subtype','use_type','use_subtype','property_state','typology','area_m2','gross_area','useful_area','land_area','area_garage_m2','area_annex_m2','year_built','condition','fee_amount','perito_avaliador','id_registo_predial','id_registo_matricial']
+
 function norm(s: string) { return s.toLowerCase().trim().normalize('NFD').replace(/[\u0300-\u036f]/g,'') }
 
-// Portfolio status options — updated
 const STATUS_OPTIONS = [
-  { value: 'active',           label: 'Activo',              badge: 'green'  },
-  { value: 'delivered',        label: 'Entregue',            badge: 'blue'   },
-  { value: 'awaiting_payment', label: 'Aguarda Pagamento',   badge: 'amber'  },
-  { value: 'closed',           label: 'Encerrado',           badge: 'gray'   },
+  { value:'active',           label:'Activo',            badge:'green'  },
+  { value:'delivered',        label:'Entregue',          badge:'blue'   },
+  { value:'awaiting_payment', label:'Aguarda Pagamento', badge:'amber'  },
+  { value:'closed',           label:'Encerrado',         badge:'gray'   },
 ] as const
-type PortfolioStatus = typeof STATUS_OPTIONS[number]['value']
 const STATUS_MAP = Object.fromEntries(STATUS_OPTIONS.map(s => [s.value, s])) as Record<string, typeof STATUS_OPTIONS[number]>
 
 function ImportPanel({ portfolioId, clientId, onClose, onDone }: { portfolioId:string; clientId:string; onClose:()=>void; onDone:()=>void }) {
@@ -56,12 +115,16 @@ function ImportPanel({ portfolioId, clientId, onClose, onDone }: { portfolioId:s
     setFileName(file.name)
     const reader = new FileReader()
     reader.onload = ev => {
-      const wb   = XLSX.read(ev.target!.result, { type:'array' })
-      const data = XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]], { defval:null }) as any[]
+      const wb   = XLSX.read(ev.target!.result, { type:'array', cellDates:true })
+      const data = XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]], { defval:null, raw:false }) as any[]
       if (!data.length) { toast.error('Ficheiro vazio'); return }
       const hdrs = Object.keys(data[0])
       const map: Record<string,string> = {}
-      hdrs.forEach(h => { const a = ALIASES[norm(h)]; if (a) map[h] = a })
+      hdrs.forEach(h => {
+        const normalized = norm(h)
+        const field = ALIASES[normalized] || ALIASES[h.trim()]
+        if (field) map[h] = field
+      })
       setHeaders(hdrs); setMapping(map); setRows(data); setStep('map')
     }
     reader.readAsArrayBuffer(file)
@@ -73,34 +136,53 @@ function ImportPanel({ portfolioId, clientId, onClose, onDone }: { portfolioId:s
       const sched = feeSchedules.find((s: any) => s.id === feeScheduleId)
       feeRules = sched?.rules || []
     }
-    const { data: existing } = await supabase.from('properties').select('id, external_ref').eq('portfolio_id', portfolioId)
-    const existMap: Record<string,any> = {}
-    ;(existing||[]).forEach((p: any) => { if (p.external_ref) existMap[p.external_ref] = p })
+
+    // Get ALL existing properties for this portfolio with their external_ref
+    const { data: existing } = await supabase
+      .from('properties')
+      .select('id, external_ref')
+      .eq('portfolio_id', portfolioId)
+
+    const existMap: Record<string,string> = {}
+    ;(existing||[]).forEach((p: any) => {
+      if (p.external_ref) existMap[p.external_ref.trim()] = p.id
+    })
+
+    console.log(`Found ${Object.keys(existMap).length} existing records`)
 
     const newRows: any[] = [], updates: any[] = [], unchanged: any[] = []
+
     rows.forEach((row: any, i: number) => {
       const p: any = { datatape_data: row }
       Object.entries(mapping).forEach(([col, field]) => {
         const v = row[col]
-        if (v !== null && v !== undefined && String(v).trim() !== '')
-          p[field] = NUMERIC.includes(field) ? (parseFloat(String(v)) || null) : String(v).trim()
+        if (v !== null && v !== undefined && String(v).trim() !== '' && String(v) !== 'null') {
+          p[field] = NUMERIC.includes(field) ? (parseFloat(String(v).replace(',','.')) || null) : String(v).trim()
+        }
       })
+
       if (feeRules.length && p.property_type && !p.fee_amount) {
         const fee = calculateFee(p.property_type, p.area_m2 || p.gross_area, feeRules)
         if (fee) p.fee_amount = fee
       }
-      const extRef = p.external_ref
-      if (extRef && existMap[extRef]) {
-        updates.push({ ...p, _id: existMap[extRef].id, _ref: extRef })
+
+      const extRef = p.external_ref?.trim()
+      const existId = extRef ? existMap[extRef] : null
+
+      if (existId) {
+        updates.push({ ...p, _id: existId, _ref: extRef })
       } else {
         newRows.push({ ...p, _ref: extRef || `linha ${i+1}` })
       }
     })
+
+    console.log(`Preview: ${newRows.length} new, ${updates.length} updates`)
     setPreview({ newRows, updates, unchanged }); setStep('preview')
   }
 
   async function doImport() {
     let imported = 0, updated = 0
+
     if (preview.newRows.length) {
       const toInsert = preview.newRows.map((p: any, i: number) => {
         const { _ref, ...rest } = p
@@ -112,21 +194,30 @@ function ImportPanel({ portfolioId, clientId, onClose, onDone }: { portfolioId:s
         imported += Math.min(100, toInsert.length - i)
       }
     }
+
     for (const p of preview.updates) {
       const { _id, _ref, ...fields } = p
-      await supabase.from('properties').update(fields).eq('id', _id)
+      const { error } = await supabase.from('properties').update(fields).eq('id', _id)
+      if (error) { toast.error(error.message); return }
       updated++
     }
-    await supabase.from('datatape_imports').insert({ portfolio_id: portfolioId, file_name: fileName, row_count: rows.length, imported_count: imported + updated })
+
+    await supabase.from('datatape_imports').insert({
+      portfolio_id: portfolioId, file_name: fileName,
+      row_count: rows.length, imported_count: imported + updated
+    })
+
     setResult({ imported, updated }); setStep('done')
     toast.success(`${imported} novos · ${updated} actualizados`)
     onDone()
   }
 
+  const refFieldMapped = Object.values(mapping).includes('external_ref')
+
   return (
     <div className="mt-3 border border-gray-200 rounded-xl bg-gray-50 p-4 space-y-3">
       <div className="flex items-center justify-between">
-        <p className="text-sm font-semibold text-gray-700">Importar data-tape</p>
+        <p className="text-sm font-semibold text-gray-700">Importar / actualizar data-tape</p>
         <button onClick={onClose} className="text-gray-400 hover:text-gray-600"><X size={15}/></button>
       </div>
 
@@ -141,6 +232,13 @@ function ImportPanel({ portfolioId, clientId, onClose, onDone }: { portfolioId:s
       {step === 'map' && (
         <div className="space-y-3">
           <p className="text-xs text-gray-500">{fileName} · {rows.length} linhas · {Object.values(mapping).filter(Boolean).length} mapeadas</p>
+
+          {!refFieldMapped && (
+            <div className="bg-amber-50 border border-amber-200 rounded-lg px-3 py-2 text-xs text-amber-700">
+              ⚠️ Nenhuma coluna mapeada para <strong>external_ref</strong>. Sem referência externa, o sistema não consegue detectar duplicados e criará sempre novos registos. Verifica o mapeamento abaixo.
+            </div>
+          )}
+
           <div>
             <label className="text-xs text-gray-500 mb-1 block">Precário (honorários automáticos)</label>
             <select className="input text-xs" value={feeScheduleId} onChange={e => setFeeScheduleId(e.target.value)}>
@@ -148,15 +246,21 @@ function ImportPanel({ portfolioId, clientId, onClose, onDone }: { portfolioId:s
               {feeSchedules.map((s: any) => <option key={s.id} value={s.id}>{s.name}</option>)}
             </select>
           </div>
+
           <div className="max-h-56 overflow-y-auto space-y-1.5 border border-gray-200 rounded-lg bg-white p-2">
             {headers.map(h => (
               <div key={h} className="flex items-center gap-2">
-                <span className="text-xs text-gray-400 font-mono w-36 truncate">{h}</span>
+                <span className={`text-xs font-mono w-36 truncate px-1 py-0.5 rounded ${mapping[h]==='external_ref'?'bg-brand-50 text-brand-700':'text-gray-400 bg-gray-50'}`}>{h}</span>
                 <select className="input flex-1 text-xs py-0.5" value={mapping[h]||''} onChange={e => setMapping(prev => ({...prev,[h]:e.target.value}))}>
                   <option value="">(ignorar)</option>
                   {FIELDS.map(f => <option key={f} value={f}>{f}</option>)}
                 </select>
-                {mapping[h] ? <CheckCircle size={12} className="text-emerald-400 flex-shrink-0"/> : <AlertCircle size={12} className="text-gray-200 flex-shrink-0"/>}
+                {mapping[h]==='external_ref'
+                  ? <span className="text-xs text-brand-600 font-bold flex-shrink-0">KEY</span>
+                  : mapping[h]
+                    ? <CheckCircle size={12} className="text-emerald-400 flex-shrink-0"/>
+                    : <AlertCircle size={12} className="text-gray-200 flex-shrink-0"/>
+                }
               </div>
             ))}
           </div>
@@ -169,14 +273,28 @@ function ImportPanel({ portfolioId, clientId, onClose, onDone }: { portfolioId:s
 
       {step === 'preview' && (
         <div className="space-y-3">
-          <div className="grid grid-cols-3 gap-2 text-center">
+          <div className="grid grid-cols-2 gap-2 text-center">
             <div className="bg-emerald-50 rounded-lg p-2"><p className="text-lg font-semibold text-emerald-600">{preview.newRows.length}</p><p className="text-xs text-gray-500">Novos</p></div>
             <div className="bg-amber-50 rounded-lg p-2"><p className="text-lg font-semibold text-amber-600">{preview.updates.length}</p><p className="text-xs text-gray-500">Actualizados</p></div>
-            <div className="bg-gray-50 rounded-lg p-2"><p className="text-lg font-semibold text-gray-400">{preview.unchanged.length}</p><p className="text-xs text-gray-500">Sem alteração</p></div>
           </div>
+          {preview.updates.length > 0 && (
+            <div className="bg-white border border-gray-200 rounded-lg p-2 max-h-32 overflow-y-auto">
+              <p className="text-xs font-medium text-gray-600 mb-1">A actualizar:</p>
+              {preview.updates.slice(0,10).map((p: any, i: number) => (
+                <p key={i} className="text-xs text-gray-500 font-mono">{p._ref}</p>
+              ))}
+              {preview.updates.length > 10 && <p className="text-xs text-gray-400">…e mais {preview.updates.length-10}</p>}
+            </div>
+          )}
+          {!refFieldMapped && preview.newRows.length > 0 && (
+            <p className="text-xs text-amber-600 bg-amber-50 border border-amber-200 rounded px-2 py-1">
+              Sem campo de referência mapeado — todos os registos serão tratados como novos.
+            </p>
+          )}
           <div className="flex gap-2">
             <button className="btn text-xs py-1" onClick={() => setStep('map')}>← Voltar</button>
-            <button className="btn btn-primary text-xs py-1" onClick={doImport} disabled={preview.newRows.length + preview.updates.length === 0}>
+            <button className="btn btn-primary text-xs py-1" onClick={doImport}
+              disabled={preview.newRows.length + preview.updates.length === 0}>
               Confirmar importação
             </button>
           </div>
@@ -226,7 +344,7 @@ export default function Portfolios() {
       const { error } = await supabase.from('portfolios').update({ status }).eq('id', id)
       if (error) throw error
     },
-    onSuccess: () => { qc.invalidateQueries({ queryKey:['portfolios'] }); toast.success('Estado actualizado') },
+    onSuccess: () => { qc.invalidateQueries({ queryKey:['portfolios'] }) },
     onError: (e: any) => toast.error(e.message)
   })
 
@@ -271,7 +389,7 @@ export default function Portfolios() {
                       <div className="flex items-center gap-1">
                         <Badge variant={statusInfo.badge as any}>{statusInfo.label}</Badge>
                         <button className="btn p-1.5 text-red-400 hover:bg-red-50 border-0 ml-1"
-                          onClick={() => { if (confirm(`Eliminar "${p.name}" e todos os imóveis?`)) del.mutate(p.id) }}>
+                          onClick={() => { if (confirm(`Eliminar "${p.name}" e todos os imóveis? Esta acção é irreversível.`)) del.mutate(p.id) }}>
                           <Trash2 size={13}/>
                         </button>
                       </div>
@@ -279,14 +397,10 @@ export default function Portfolios() {
 
                     {p.description && <p className="text-xs text-gray-500">{p.description}</p>}
 
-                    {/* Status selector */}
                     <div>
-                      <label className="text-xs text-gray-400 mb-1 block">Estado do portfólio</label>
-                      <select
-                        className="input text-xs py-1.5"
-                        value={p.status || 'active'}
-                        onChange={e => updateStatus.mutate({ id: p.id, status: e.target.value })}
-                      >
+                      <label className="text-xs text-gray-400 mb-1 block">Estado</label>
+                      <select className="input text-xs py-1.5" value={p.status||'active'}
+                        onChange={e => updateStatus.mutate({ id:p.id, status:e.target.value })}>
                         {STATUS_OPTIONS.map(s => <option key={s.value} value={s.value}>{s.label}</option>)}
                       </select>
                     </div>
