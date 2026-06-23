@@ -18,27 +18,45 @@ const AuthContext = createContext<AuthContextType>({
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [session, setSession] = useState<Session | null>(null)
+  const [profile, setProfile] = useState<{ name: string; role: string } | null>(null)
   const [loading, setLoading] = useState(true)
 
+  async function loadProfile(userId: string) {
+    const { data } = await supabase
+      .from('profiles')
+      .select('name, role')
+      .eq('id', userId)
+      .single()
+    setProfile(data || null)
+  }
+
   useEffect(() => {
-    supabase.auth.getSession().then(({ data }) => {
+    supabase.auth.getSession().then(async ({ data }) => {
       setSession(data.session)
+      if (data.session?.user) await loadProfile(data.session.user.id)
       setLoading(false)
     })
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((_e, s) => {
+
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (_e, s) => {
       setSession(s)
+      if (s?.user) {
+        await loadProfile(s.user.id)
+      } else {
+        setProfile(null)
+      }
       setLoading(false)
     })
+
     return () => subscription.unsubscribe()
   }, [])
 
   const user = session?.user ?? null
-  // Role is stored in user_metadata.role, name in user_metadata.name
-  const role = (user?.user_metadata?.role as 'admin' | 'perito') ?? null
-  const name = (user?.user_metadata?.name as string) ?? user?.email ?? null
+  const role = (profile?.role as 'admin' | 'perito') ?? null
+  const name = profile?.name ?? null
 
   async function signOut() {
     await supabase.auth.signOut()
+    setProfile(null)
   }
 
   return (
