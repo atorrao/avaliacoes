@@ -2,13 +2,23 @@ import { useState, useCallback, useRef, useEffect } from 'react'
 import { useParams, Link } from 'react-router-dom'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { supabase } from '@/lib/supabase'
-import { VisitBadge, BillingBadge, VISIT_STATUS_LABELS, BILLING_STATUS_LABELS } from '@/components/ui'
+import { VisitBadge, BillingBadge } from '@/components/ui'
 import { ArrowLeft, Upload, Trash2, FileSpreadsheet, MapPin, Loader2, FileText, ExternalLink, Save, Link as LinkIcon } from 'lucide-react'
 import { useDropzone } from 'react-dropzone'
 import { compressPhoto, generateReport } from '@/lib/excel'
 import { formatCurrency, formatDate } from '@/lib/utils'
 import { geocodeAddress } from '@/lib/geocode'
 import toast from 'react-hot-toast'
+
+const VISIT_STATUS_LABELS: Record<string,string> = {
+  pending: 'Por visitar', scheduled: 'Agendado',
+  visited: 'Visitado', report_done: 'Report OK',
+}
+const BILLING_STATUS_LABELS: Record<string,string> = {
+  no_po: 'Sem PO', awaiting_po: 'A aguardar PO', po_received: 'PO recebida',
+  invoice_pending: 'Fatura por emitir', invoice_issued: 'Fatura emitida', paid: 'Pago',
+}
+
 
 declare global { interface Window { L: any } }
 

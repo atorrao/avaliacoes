@@ -9,8 +9,6 @@ import * as XLSX from 'xlsx'
 import { calculateFee } from '@/lib/feeCalculator'
 import { CheckCircle, AlertCircle } from 'lucide-react'
 
-// ── Inline DataTape import (simplified, embedded in portfolio card) ──
-
 const ALIASES: Record<string, string> = {
   'referencia':'external_ref','ref':'external_ref','id':'external_ref','codigo':'external_ref','bem':'external_ref','n bem':'external_ref','nr bem':'external_ref',
   'rua':'street','street':'street','numero':'number','bloco':'block','letra':'floor_letter','fraccao':'fracao','fracao':'fracao',
@@ -28,14 +26,24 @@ const NUMERIC = ['area_m2','gross_area','useful_area','land_area','area_garage_m
 const FIELDS  = ['external_ref','street','number','block','floor_letter','fracao','address','parish','municipality','district','postal_code','property_type','property_subtype','use_type','use_subtype','property_state','typology','area_m2','gross_area','useful_area','land_area','area_garage_m2','area_annex_m2','year_built','condition','fee_amount','perito_avaliador','id_registo_predial','id_registo_matricial']
 function norm(s: string) { return s.toLowerCase().trim().normalize('NFD').replace(/[\u0300-\u036f]/g,'') }
 
+// Portfolio status options — updated
+const STATUS_OPTIONS = [
+  { value: 'active',           label: 'Activo',              badge: 'green'  },
+  { value: 'delivered',        label: 'Entregue',            badge: 'blue'   },
+  { value: 'awaiting_payment', label: 'Aguarda Pagamento',   badge: 'amber'  },
+  { value: 'closed',           label: 'Encerrado',           badge: 'gray'   },
+] as const
+type PortfolioStatus = typeof STATUS_OPTIONS[number]['value']
+const STATUS_MAP = Object.fromEntries(STATUS_OPTIONS.map(s => [s.value, s])) as Record<string, typeof STATUS_OPTIONS[number]>
+
 function ImportPanel({ portfolioId, clientId, onClose, onDone }: { portfolioId:string; clientId:string; onClose:()=>void; onDone:()=>void }) {
-  const [rows, setRows]       = useState<any[]>([])
-  const [headers, setHeaders] = useState<string[]>([])
-  const [mapping, setMapping] = useState<Record<string,string>>({})
+  const [rows, setRows]         = useState<any[]>([])
+  const [headers, setHeaders]   = useState<string[]>([])
+  const [mapping, setMapping]   = useState<Record<string,string>>({})
   const [fileName, setFileName] = useState('')
-  const [step, setStep]       = useState<'upload'|'map'|'preview'|'done'>('upload')
-  const [preview, setPreview] = useState<{newRows:any[];updates:any[];unchanged:any[]}>({newRows:[],updates:[],unchanged:[]})
-  const [result, setResult]   = useState({imported:0,updated:0})
+  const [step, setStep]         = useState<'upload'|'map'|'preview'|'done'>('upload')
+  const [preview, setPreview]   = useState<{newRows:any[];updates:any[];unchanged:any[]}>({newRows:[],updates:[],unchanged:[]})
+  const [result, setResult]     = useState({imported:0,updated:0})
   const [feeScheduleId, setFeeScheduleId] = useState('')
 
   const { data: feeSchedules = [] } = useQuery({
@@ -65,7 +73,7 @@ function ImportPanel({ portfolioId, clientId, onClose, onDone }: { portfolioId:s
       const sched = feeSchedules.find((s: any) => s.id === feeScheduleId)
       feeRules = sched?.rules || []
     }
-    const { data: existing } = await supabase.from('properties').select('id, external_ref, datatape_data').eq('portfolio_id', portfolioId)
+    const { data: existing } = await supabase.from('properties').select('id, external_ref').eq('portfolio_id', portfolioId)
     const existMap: Record<string,any> = {}
     ;(existing||[]).forEach((p: any) => { if (p.external_ref) existMap[p.external_ref] = p })
 
@@ -83,9 +91,7 @@ function ImportPanel({ portfolioId, clientId, onClose, onDone }: { portfolioId:s
       }
       const extRef = p.external_ref
       if (extRef && existMap[extRef]) {
-        const changed = Object.keys(p).some(k => k !== 'datatape_data' && String(p[k]||'') !== String(existMap[extRef][k]||''))
-        if (changed) updates.push({ ...p, _id: existMap[extRef].id, _ref: extRef })
-        else         unchanged.push({ ...p, _ref: extRef })
+        updates.push({ ...p, _id: existMap[extRef].id, _ref: extRef })
       } else {
         newRows.push({ ...p, _ref: extRef || `linha ${i+1}` })
       }
@@ -191,14 +197,10 @@ function ImportPanel({ portfolioId, clientId, onClose, onDone }: { portfolioId:s
   )
 }
 
-// ── Main Portfolios page ─────────────────────────────────────
-const statusLabel: any = { active:'Activo', completed:'Concluído', archived:'Arquivado' }
-const statusBadge: any = { active:'green', completed:'blue', archived:'gray' }
-
 export default function Portfolios() {
   const qc = useQueryClient()
-  const [modal, setModal]     = useState(false)
-  const [form, setForm]       = useState({ client_id:'', name:'', description:'', deadline:'', status:'active' })
+  const [modal, setModal]           = useState(false)
+  const [form, setForm]             = useState({ client_id:'', name:'', description:'', deadline:'', status:'active' })
   const [openImport, setOpenImport] = useState<string|null>(null)
 
   const { data: portfolios = [], isLoading } = useQuery({
@@ -216,6 +218,15 @@ export default function Portfolios() {
   const create = useMutation({
     mutationFn: async () => { const {error} = await supabase.from('portfolios').insert(form); if (error) throw error },
     onSuccess: () => { qc.invalidateQueries({ queryKey:['portfolios'] }); toast.success('Portfólio criado'); setModal(false); setForm({ client_id:'', name:'', description:'', deadline:'', status:'active' }) },
+    onError: (e: any) => toast.error(e.message)
+  })
+
+  const updateStatus = useMutation({
+    mutationFn: async ({ id, status }: { id:string; status:string }) => {
+      const { error } = await supabase.from('portfolios').update({ status }).eq('id', id)
+      if (error) throw error
+    },
+    onSuccess: () => { qc.invalidateQueries({ queryKey:['portfolios'] }); toast.success('Estado actualizado') },
     onError: (e: any) => toast.error(e.message)
   })
 
@@ -248,48 +259,62 @@ export default function Portfolios() {
           : portfolios.length === 0 ? <EmptyState message="Sem portfólios criados ainda."/>
           : (
             <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
-              {portfolios.map((p: any) => (
-                <div key={p.id} className="card flex flex-col gap-3">
-                  <div className="flex items-start justify-between">
+              {portfolios.map((p: any) => {
+                const statusInfo = STATUS_MAP[p.status] || STATUS_MAP['active']
+                return (
+                  <div key={p.id} className="card flex flex-col gap-3">
+                    <div className="flex items-start justify-between">
+                      <div>
+                        <p className="font-semibold text-gray-900">{p.name}</p>
+                        <p className="text-xs text-gray-400 mt-0.5">{p.clients?.name}</p>
+                      </div>
+                      <div className="flex items-center gap-1">
+                        <Badge variant={statusInfo.badge as any}>{statusInfo.label}</Badge>
+                        <button className="btn p-1.5 text-red-400 hover:bg-red-50 border-0 ml-1"
+                          onClick={() => { if (confirm(`Eliminar "${p.name}" e todos os imóveis?`)) del.mutate(p.id) }}>
+                          <Trash2 size={13}/>
+                        </button>
+                      </div>
+                    </div>
+
+                    {p.description && <p className="text-xs text-gray-500">{p.description}</p>}
+
+                    {/* Status selector */}
                     <div>
-                      <p className="font-semibold text-gray-900">{p.name}</p>
-                      <p className="text-xs text-gray-400 mt-0.5">{p.clients?.name}</p>
+                      <label className="text-xs text-gray-400 mb-1 block">Estado do portfólio</label>
+                      <select
+                        className="input text-xs py-1.5"
+                        value={p.status || 'active'}
+                        onChange={e => updateStatus.mutate({ id: p.id, status: e.target.value })}
+                      >
+                        {STATUS_OPTIONS.map(s => <option key={s.value} value={s.value}>{s.label}</option>)}
+                      </select>
                     </div>
-                    <div className="flex items-center gap-1">
-                      <Badge variant={statusBadge[p.status]}>{statusLabel[p.status]}</Badge>
-                      <button className="btn p-1.5 text-red-400 hover:bg-red-50 border-0 ml-1"
-                        onClick={() => { if (confirm(`Eliminar "${p.name}" e todos os imóveis?`)) del.mutate(p.id) }}>
-                        <Trash2 size={13}/>
+
+                    <div className="flex items-center justify-between text-xs text-gray-400 pt-2 border-t border-gray-50">
+                      <span>{p.properties?.[0]?.count || 0} imóveis</span>
+                      {p.deadline && <span>Prazo: {p.deadline}</span>}
+                      <Link to={`/properties?portfolio=${p.id}`} className="text-brand-500 flex items-center gap-0.5 hover:underline">
+                        Ver imóveis <ChevronRight size={11}/>
+                      </Link>
+                    </div>
+
+                    {openImport === p.id ? (
+                      <ImportPanel
+                        portfolioId={p.id}
+                        clientId={p.clients?.id || ''}
+                        onClose={() => setOpenImport(null)}
+                        onDone={() => { qc.invalidateQueries({ queryKey:['portfolios'] }); setOpenImport(null) }}
+                      />
+                    ) : (
+                      <button className="btn text-xs w-full flex items-center justify-center gap-1.5 border-dashed"
+                        onClick={() => setOpenImport(p.id)}>
+                        <Upload size={13}/> Importar / actualizar data-tape
                       </button>
-                    </div>
+                    )}
                   </div>
-
-                  {p.description && <p className="text-xs text-gray-500">{p.description}</p>}
-
-                  <div className="flex items-center justify-between text-xs text-gray-400 pt-2 border-t border-gray-50">
-                    <span>{p.properties?.[0]?.count || 0} imóveis</span>
-                    {p.deadline && <span>Prazo: {p.deadline}</span>}
-                    <Link to={`/properties?portfolio=${p.id}`} className="text-brand-500 flex items-center gap-0.5 hover:underline">
-                      Ver imóveis <ChevronRight size={11}/>
-                    </Link>
-                  </div>
-
-                  {/* Import button */}
-                  {openImport === p.id ? (
-                    <ImportPanel
-                      portfolioId={p.id}
-                      clientId={p.clients?.id || ''}
-                      onClose={() => setOpenImport(null)}
-                      onDone={() => { qc.invalidateQueries({ queryKey:['portfolios'] }); setOpenImport(null) }}
-                    />
-                  ) : (
-                    <button className="btn text-xs w-full flex items-center justify-center gap-1.5 border-dashed"
-                      onClick={() => setOpenImport(p.id)}>
-                      <Upload size={13}/> Importar / actualizar data-tape
-                    </button>
-                  )}
-                </div>
-              ))}
+                )
+              })}
             </div>
           )}
       </div>
@@ -309,6 +334,12 @@ export default function Portfolios() {
               <div><label className="label">Nome *</label><input className="input" value={form.name} onChange={e => setForm(f => ({...f, name:e.target.value}))}/></div>
               <div><label className="label">Descrição</label><input className="input" value={form.description} onChange={e => setForm(f => ({...f, description:e.target.value}))}/></div>
               <div><label className="label">Prazo</label><input type="date" className="input" value={form.deadline} onChange={e => setForm(f => ({...f, deadline:e.target.value}))}/></div>
+              <div>
+                <label className="label">Estado</label>
+                <select className="input" value={form.status} onChange={e => setForm(f => ({...f, status:e.target.value}))}>
+                  {STATUS_OPTIONS.map(s => <option key={s.value} value={s.value}>{s.label}</option>)}
+                </select>
+              </div>
             </div>
             <div className="flex justify-end gap-2 mt-6">
               <button className="btn" onClick={() => setModal(false)}>Cancelar</button>
