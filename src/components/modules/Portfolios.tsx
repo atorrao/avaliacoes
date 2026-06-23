@@ -190,20 +190,27 @@ function ImportPanel({ portfolioId, clientId, onClose, onDone }: { portfolioId:s
       })
 
       if (feeRules.length && p.property_type && !p.fee_amount) {
-        // Map ABANCA tipo_bien values to fee schedule activity names
-        const tipoMap: Record<string,string> = {
-          'APARTAMENTO': 'Apartamento', 'VIVIENDA': 'Apartamento',
-          'EDIFICIO': 'Habitação', 'HABITACION': 'Habitação',
-          'GARAGE': 'Garagem', 'TRASTERO': 'Arrumos',
-          'LOCAL COMERCIAL': 'Comércio', 'COMERCIAL': 'Comércio',
-          'OFICINA': 'Escritórios', 'OFICINAS': 'Escritórios',
-          'NAVE INDUSTRIAL': 'Naves industriais',
-          'TERRENO URBANO': 'Terreno urbano', 'TERRENO RUSTICO': 'Terreno rústico',
-          'MORADIA': 'Moradia', 'VIVENDA UNIFAMILIAR': 'Moradias unifamiliares',
+        // Map exact ABANCA TIPO_BIEN values to precário activities
+        const tipo = (p.property_type || '').toUpperCase().trim()
+        const subtipo = (p.property_subtype || '').toUpperCase().trim()
+        let activity = ''
+        let area = p.area_m2 || p.gross_area || 0
+
+        if (tipo === 'VIVIENDA (PISO)')         activity = 'Apartamento'
+        else if (tipo === 'VIVIENDA UNIFAMILIAR') activity = 'Moradias unifamiliares'
+        else if (tipo === 'GARAJE')              activity = 'Garagem'
+        else if (tipo === 'EDIFICIO')            activity = 'Habitação'
+        else if (tipo === 'LOCAL DE NEGOCIO')    activity = 'Comércio'
+        else if (tipo === 'NAVE')                activity = 'Naves industriais'
+        else if (tipo === 'TERRENO') {
+          // FINCA RÚSTICA subtipo → terreno rústico, rest → terreno urbano
+          activity = subtipo === 'FINCA RÚSTICA' ? 'Terreno rústico' : 'Terreno urbano'
         }
-        const actType = tipoMap[p.property_type.toUpperCase()] || p.property_type
-        const fee = calculateFee(actType, p.area_m2 || p.gross_area, feeRules)
-        if (fee) p.fee_amount = fee
+
+        if (activity) {
+          const fee = calculateFee(activity, area, feeRules)
+          if (fee) p.fee_amount = fee
+        }
       }
 
       const extRef = p.external_ref?.trim()

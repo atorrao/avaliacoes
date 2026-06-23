@@ -305,7 +305,7 @@ export default function Properties() {
       </div>
 
       {selected.size > 0 && (
-        <div className="sticky top-0 z-20 bg-brand-50 border-b border-brand-100 px-6 py-2.5 flex items-center gap-3 flex-wrap shadow-sm">
+        <div className="fixed top-0 left-[220px] right-0 z-40 bg-brand-100 border-b border-brand-200 px-6 py-3 flex items-center gap-3 flex-wrap shadow-md">
           <span className="text-sm font-medium text-brand-700">{selected.size} seleccionados</span>
           <div className="flex items-center gap-1.5">
             <select className="input text-xs py-1 max-w-[155px]" value={bulkVisit} onChange={e => setBulkVisit(e.target.value)}>
