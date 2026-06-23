@@ -155,6 +155,7 @@ function ImportPanel({ portfolioId, clientId, onClose, onDone }: { portfolioId:s
     rows.forEach((row: any, i: number) => {
       const p: any = { datatape_data: row }
       Object.entries(mapping).forEach(([col, field]) => {
+        if (!field || !col) return  // skip empty keys
         const v = row[col]
         if (v !== null && v !== undefined && String(v).trim() !== '' && String(v) !== 'null') {
           p[field] = NUMERIC.includes(field) ? (parseFloat(String(v).replace(',','.')) || null) : String(v).trim()
@@ -180,13 +181,36 @@ function ImportPanel({ portfolioId, clientId, onClose, onDone }: { portfolioId:s
     setPreview({ newRows, updates, unchanged }); setStep('preview')
   }
 
+  // Valid columns in the properties table — anything else goes to datatape_data only
+  const VALID_PROPERTY_COLS = new Set([
+    'external_ref','street','number','block','floor_letter','fracao',
+    'address','parish','municipality','district','postal_code',
+    'property_type','property_subtype','use_type','use_subtype','property_state',
+    'typology','year_built','condition','area_m2','gross_area','useful_area',
+    'land_area','area_garage_m2','area_annex_m2','fee_amount',
+    'perito_avaliador','id_registo_predial','id_registo_matricial',
+  ])
+
+  function sanitiseForDB(p: any) {
+    const clean: any = {}
+    Object.entries(p).forEach(([k, v]) => {
+      // Skip internal markers, empty keys, and unknown columns
+      if (!k || k.startsWith('_')) return
+      if (k === 'datatape_data') { clean[k] = v; return }
+      if (VALID_PROPERTY_COLS.has(k)) clean[k] = v
+      // Everything else stays only in datatape_data
+    })
+    return clean
+  }
+
   async function doImport() {
     let imported = 0, updated = 0
 
     if (preview.newRows.length) {
       const toInsert = preview.newRows.map((p: any, i: number) => {
         const { _ref, ...rest } = p
-        return { ...rest, portfolio_id: portfolioId, client_id: clientId, ref: `AV-${String(i+1).padStart(4,'0')}` }
+        const safe = sanitiseForDB(rest)
+        return { ...safe, portfolio_id: portfolioId, client_id: clientId, ref: `AV-${String(i+1).padStart(4,'0')}` }
       })
       for (let i = 0; i < toInsert.length; i += 100) {
         const { error } = await supabase.from('properties').insert(toInsert.slice(i, i+100))
@@ -197,7 +221,8 @@ function ImportPanel({ portfolioId, clientId, onClose, onDone }: { portfolioId:s
 
     for (const p of preview.updates) {
       const { _id, _ref, ...fields } = p
-      const { error } = await supabase.from('properties').update(fields).eq('id', _id)
+      const safe = sanitiseForDB(fields)
+      const { error } = await supabase.from('properties').update(safe).eq('id', _id)
       if (error) { toast.error(error.message); return }
       updated++
     }
