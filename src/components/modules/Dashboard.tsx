@@ -5,13 +5,13 @@ import { PageHeader, KpiCard, VisitBadge, BillingBadge } from '@/components/ui'
 import { formatCurrency, formatDate } from '@/lib/utils'
 import { Link } from 'react-router-dom'
 import { useAuth } from '@/lib/AuthContext'
-import { CheckSquare, Square, Pencil, Check, X, ChevronDown, Trash2 } from 'lucide-react'
+import { CheckSquare, Square, Pencil, Check, X, Trash2 } from 'lucide-react'
 import toast from 'react-hot-toast'
 
 const VISIT_LABELS: Record<string,string>   = { pending:'Por visitar', scheduled:'Agendado', visited:'Visitado', report_done:'Report OK' }
 const BILLING_LABELS: Record<string,string> = { no_po:'Sem PO', awaiting_po:'A aguardar PO', po_received:'PO recebida', invoice_pending:'Fat. por emitir', invoice_issued:'Fat. emitida', paid:'Pago' }
 
-// ── Inline edit de texto (perito) ──────────────────────────────────────────
+// ── Inline text edit ───────────────────────────────────────────────────────
 function InlineEdit({ value, onSave }: { value: string|null; onSave: (v: string) => void }) {
   const [editing, setEditing] = useState(false)
   const [val, setVal]         = useState(value || '')
@@ -32,27 +32,33 @@ function InlineEdit({ value, onSave }: { value: string|null; onSave: (v: string)
   )
 }
 
-// ── Inline select (visita) ─────────────────────────────────────────────────
-function InlineVisitSelect({ id, value, onChange }: { id: string; value: string|null; onChange: (id:string, v:string) => void }) {
+// ── Inline select genérico ─────────────────────────────────────────────────
+function InlineSelect({ value, options, renderValue, onChange }: {
+  value: string|null
+  options: Record<string,string>
+  renderValue: (v: string|null) => React.ReactNode
+  onChange: (v: string) => void
+}) {
   const [editing, setEditing] = useState(false)
   if (!editing) return (
     <div className="cursor-pointer" onClick={() => setEditing(true)}>
-      <VisitBadge status={value} />
+      {renderValue(value)}
     </div>
   )
   return (
     <select autoFocus className="text-xs border border-brand-300 rounded px-1 py-0.5 focus:outline-none"
-      value={value || 'pending'}
-      onChange={e => { onChange(id, e.target.value); setEditing(false) }}
+      value={value || ''}
+      onChange={e => { onChange(e.target.value); setEditing(false) }}
       onBlur={() => setEditing(false)}>
-      {Object.entries(VISIT_LABELS).map(([k,v]) => <option key={k} value={k}>{v}</option>)}
+      {Object.entries(options).map(([k,v]) => <option key={k} value={k}>{v}</option>)}
     </select>
   )
 }
 
-// ── Inline boolean toggle (fotos, comparáveis, verificado) ─────────────────
-function BoolBadge({ value, trueLabel, falseLabel, color, onClick }:
-  { value: boolean; trueLabel: string; falseLabel: string; color: string; onClick: () => void }) {
+// ── Bool badge toggle ──────────────────────────────────────────────────────
+function BoolBadge({ value, trueLabel, falseLabel, color, onClick }: {
+  value: boolean; trueLabel: string; falseLabel: string; color: string; onClick: () => void
+}) {
   return (
     <button onClick={onClick}
       className={`text-xs font-medium px-2 py-0.5 rounded-full transition-colors whitespace-nowrap
@@ -71,7 +77,6 @@ export default function Dashboard() {
   const [filterFotos,      setFilterFotos]      = useState('')
   const [filterComps,      setFilterComps]      = useState('')
   const [filterVerificado, setFilterVerificado] = useState('')
-  const [filterPerito,     setFilterPerito]     = useState('')
   const [search,           setSearch]           = useState('')
 
   // Bulk
@@ -84,13 +89,11 @@ export default function Dashboard() {
   const { data, isLoading } = useQuery({
     queryKey: ['dashboard-stats', role, name],
     queryFn: async () => {
-      // Stats query (all properties for KPIs — admin sees all, perito sees own)
       let statsQ = supabase.from('properties').select('visit_status, billing_status, fee_amount')
       if (role === 'perito' && name) statsQ = statsQ.eq('perito_avaliador', name)
 
-      // Table query
       let tableQ = supabase.from('properties')
-        .select('id, ref, address, municipality, property_type, typology, visit_status, billing_status, fee_amount, perito_avaliador, updated_at, tem_fotos, tem_comparaveis, verificado')
+        .select('id, ref, external_ref, address, municipality, property_type, typology, visit_status, billing_status, fee_amount, perito_avaliador, updated_at, tem_fotos, tem_comparaveis, verificado')
         .order('updated_at', { ascending: false })
       if (role === 'perito' && name) tableQ = tableQ.eq('perito_avaliador', name)
 
@@ -115,22 +118,22 @@ export default function Dashboard() {
     [...new Set(recent.map((r: any) => r.perito_avaliador).filter(Boolean))].sort() as string[]
   , [recent])
 
-  // Filtered table rows
+  // Filtered rows
   const filtered = useMemo(() => recent.filter((p: any) => {
     if (filterVisita     && p.visit_status !== filterVisita) return false
-    if (filterPerito     && p.perito_avaliador !== filterPerito) return false
-    if (filterFotos      === 'sim' && !p.tem_fotos)      return false
-    if (filterFotos      === 'nao' &&  p.tem_fotos)      return false
-    if (filterComps      === 'sim' && !p.tem_comparaveis) return false
-    if (filterComps      === 'nao' &&  p.tem_comparaveis) return false
-    if (filterVerificado === 'sim' && !p.verificado)      return false
-    if (filterVerificado === 'nao' &&  p.verificado)      return false
+    if (filterFotos      === 'sim' && !p.tem_fotos)          return false
+    if (filterFotos      === 'nao' &&  p.tem_fotos)          return false
+    if (filterComps      === 'sim' && !p.tem_comparaveis)    return false
+    if (filterComps      === 'nao' &&  p.tem_comparaveis)    return false
+    if (filterVerificado === 'sim' && !p.verificado)         return false
+    if (filterVerificado === 'nao' &&  p.verificado)         return false
     if (search) {
       const s = search.toLowerCase()
-      if (![p.ref, p.address, p.municipality, p.property_type, p.perito_avaliador].some((v: any) => v?.toLowerCase().includes(s))) return false
+      if (![p.external_ref, p.ref, p.address, p.municipality, p.property_type, p.perito_avaliador]
+        .some((v: any) => v?.toLowerCase().includes(s))) return false
     }
     return true
-  }), [recent, filterVisita, filterPerito, filterFotos, filterComps, filterVerificado, search])
+  }), [recent, filterVisita, filterFotos, filterComps, filterVerificado, search])
 
   // ── Mutations ──────────────────────────────────────────────────────────────
   const updateField = useMutation({
@@ -139,14 +142,14 @@ export default function Dashboard() {
       if (error) throw error
     },
     onSuccess: () => qc.invalidateQueries({ queryKey: ['dashboard-stats'] }),
-    onError: (e: any) => toast.error(e.message)
+    onError:   (e: any) => toast.error(e.message)
   })
 
   const bulkUpdate = useMutation({
     mutationFn: async ({ field, value }: { field:string; value:any }) => {
       const ids = [...selected]
       for (let i = 0; i < ids.length; i += 50) {
-        const { error } = await supabase.from('properties').update({ [field]: value }).in('id', ids.slice(i, i+50))
+        const { error } = await supabase.from('properties').update({ [field]: value }).in('id', ids.slice(i,i+50))
         if (error) throw error
       }
     },
@@ -162,7 +165,7 @@ export default function Dashboard() {
     mutationFn: async () => {
       const ids = [...selected]
       for (let i = 0; i < ids.length; i += 50) {
-        const chunk = ids.slice(i, i+50)
+        const chunk = ids.slice(i,i+50)
         const { data: photos } = await supabase.from('property_photos').select('storage_path').in('property_id', chunk)
         if (photos?.length) {
           for (let j = 0; j < photos.length; j += 20)
@@ -182,7 +185,6 @@ export default function Dashboard() {
     onError: (e: any) => toast.error(e.message)
   })
 
-  // ── Selection helpers ──────────────────────────────────────────────────────
   function toggleSelect(id: string) {
     setSelected(prev => { const n = new Set(prev); n.has(id) ? n.delete(id) : n.add(id); return n })
   }
@@ -191,11 +193,14 @@ export default function Dashboard() {
     setSelected(prev => prev.size === allIds.length ? new Set() : new Set(allIds))
   }
 
-  const hasFilters = filterVisita || filterFotos || filterComps || filterVerificado || filterPerito || search
+  const hasFilters = filterVisita || filterFotos || filterComps || filterVerificado || search
 
   return (
     <div>
-      <PageHeader title="Dashboard" subtitle={role === 'perito' ? `Os meus imóveis — ${name}` : 'Visão geral do portfólio'} />
+      <PageHeader
+        title="Dashboard"
+        subtitle={role === 'perito' ? `Os meus imóveis — ${name}` : 'Visão geral do portfólio'}
+      />
       <div className="p-6 space-y-6">
 
         {/* KPIs */}
@@ -206,7 +211,7 @@ export default function Dashboard() {
           <KpiCard label="A receber"          value={formatCurrency(toReceive)} sub="PO + faturas" color={toReceive > 0 ? 'amber' : 'default'} />
         </div>
 
-        {/* Progress bar */}
+        {/* Progress */}
         <div className="card">
           <div className="flex justify-between text-sm mb-2">
             <span className="text-gray-600 font-medium">Progresso do portfólio</span>
@@ -217,55 +222,46 @@ export default function Dashboard() {
           </div>
         </div>
 
-        {/* Main table */}
+        {/* Table card */}
         <div className="card">
-          <div className="flex items-center justify-between mb-4">
+          <div className="flex items-center justify-between mb-3">
             <h2 className="text-sm font-semibold text-gray-800">
               {role === 'perito' ? 'Imóveis atribuídos' : 'Últimos processos'}
-              {' '}<span className="text-gray-400 font-normal">({filtered.length})</span>
+              <span className="ml-1.5 text-gray-400 font-normal">({filtered.length})</span>
             </h2>
             <Link to="/properties" className="text-xs text-brand-600 hover:underline">Gestão completa →</Link>
           </div>
 
-          {/* Filter bar */}
-          <div className="flex flex-wrap gap-2 mb-3">
-            <input className="input text-sm max-w-[180px]" placeholder="Pesquisar…"
-              value={search} onChange={e => setSearch(e.target.value)} />
-
-            <select className="input text-sm" value={filterVisita} onChange={e => setFilterVisita(e.target.value)}>
+          {/* Compact filter bar */}
+          <div className="flex flex-wrap gap-2 mb-3 items-center">
+            <input
+              className="input text-sm w-40"
+              placeholder="Ref. ou localização…"
+              value={search}
+              onChange={e => setSearch(e.target.value)}
+            />
+            <select className="input text-sm w-36" value={filterVisita} onChange={e => setFilterVisita(e.target.value)}>
               <option value="">Visita: todas</option>
               {Object.entries(VISIT_LABELS).map(([k,v]) => <option key={k} value={k}>{v}</option>)}
             </select>
-
-            <select className="input text-sm" value={filterFotos} onChange={e => setFilterFotos(e.target.value)}>
+            <select className="input text-sm w-36" value={filterFotos} onChange={e => setFilterFotos(e.target.value)}>
               <option value="">Fotos: todas</option>
               <option value="sim">Com fotos</option>
               <option value="nao">Sem fotos</option>
             </select>
-
-            <select className="input text-sm" value={filterComps} onChange={e => setFilterComps(e.target.value)}>
+            <select className="input text-sm w-40" value={filterComps} onChange={e => setFilterComps(e.target.value)}>
               <option value="">Comparáveis: todos</option>
               <option value="sim">Com comparáveis</option>
               <option value="nao">Sem comparáveis</option>
             </select>
-
-            <select className="input text-sm" value={filterVerificado} onChange={e => setFilterVerificado(e.target.value)}>
+            <select className="input text-sm w-40" value={filterVerificado} onChange={e => setFilterVerificado(e.target.value)}>
               <option value="">Verificado: todos</option>
               <option value="sim">Verificado</option>
               <option value="nao">Por verificar</option>
             </select>
-
-            {role === 'admin' && (
-              <select className="input text-sm" value={filterPerito} onChange={e => setFilterPerito(e.target.value)}>
-                <option value="">Todos os peritos</option>
-                {peritos.map(p => <option key={p} value={p}>{p}</option>)}
-              </select>
-            )}
-
             {hasFilters && (
               <button className="btn text-xs" onClick={() => {
-                setFilterVisita(''); setFilterFotos(''); setFilterComps('')
-                setFilterVerificado(''); setFilterPerito(''); setSearch('')
+                setFilterVisita(''); setFilterFotos(''); setFilterComps(''); setFilterVerificado(''); setSearch('')
               }}>Limpar</button>
             )}
           </div>
@@ -276,7 +272,7 @@ export default function Dashboard() {
               <span className="text-sm font-medium text-brand-700">{selected.size} seleccionados</span>
 
               <div className="flex items-center gap-1.5">
-                <select className="input text-xs py-1 max-w-[155px]" value={bulkVisit} onChange={e => setBulkVisit(e.target.value)}>
+                <select className="input text-xs py-1 w-36" value={bulkVisit} onChange={e => setBulkVisit(e.target.value)}>
                   <option value="">Alterar visita…</option>
                   {Object.entries(VISIT_LABELS).map(([k,v]) => <option key={k} value={k}>{v}</option>)}
                 </select>
@@ -284,7 +280,7 @@ export default function Dashboard() {
               </div>
 
               <div className="flex items-center gap-1.5">
-                <select className="input text-xs py-1 max-w-[155px]" value={bulkBilling} onChange={e => setBulkBilling(e.target.value)}>
+                <select className="input text-xs py-1 w-36" value={bulkBilling} onChange={e => setBulkBilling(e.target.value)}>
                   <option value="">Alterar faturação…</option>
                   {Object.entries(BILLING_LABELS).map(([k,v]) => <option key={k} value={k}>{v}</option>)}
                 </select>
@@ -292,8 +288,8 @@ export default function Dashboard() {
               </div>
 
               <div className="flex items-center gap-1.5">
-                <select className="input text-xs py-1 max-w-[175px]" onChange={e => {
-                  if (e.target.value) bulkUpdate.mutate({ field:'tem_fotos', value: e.target.value === 'sim' })
+                <select className="input text-xs py-1 w-40" onChange={e => {
+                  if (e.target.value) bulkUpdate.mutate({ field:'tem_fotos', value: e.target.value==='sim' })
                 }}>
                   <option value="">Alterar fotos…</option>
                   <option value="sim">Com fotos</option>
@@ -302,8 +298,8 @@ export default function Dashboard() {
               </div>
 
               <div className="flex items-center gap-1.5">
-                <select className="input text-xs py-1 max-w-[175px]" onChange={e => {
-                  if (e.target.value) bulkUpdate.mutate({ field:'tem_comparaveis', value: e.target.value === 'sim' })
+                <select className="input text-xs py-1 w-44" onChange={e => {
+                  if (e.target.value) bulkUpdate.mutate({ field:'tem_comparaveis', value: e.target.value==='sim' })
                 }}>
                   <option value="">Alterar comparáveis…</option>
                   <option value="sim">Com comparáveis</option>
@@ -312,8 +308,8 @@ export default function Dashboard() {
               </div>
 
               <div className="flex items-center gap-1.5">
-                <select className="input text-xs py-1 max-w-[175px]" onChange={e => {
-                  if (e.target.value) bulkUpdate.mutate({ field:'verificado', value: e.target.value === 'sim' })
+                <select className="input text-xs py-1 w-40" onChange={e => {
+                  if (e.target.value) bulkUpdate.mutate({ field:'verificado', value: e.target.value==='sim' })
                 }}>
                   <option value="">Alterar verificado…</option>
                   <option value="sim">Verificado</option>
@@ -321,18 +317,20 @@ export default function Dashboard() {
                 </select>
               </div>
 
-              <div className="flex items-center gap-1.5">
-                {!showBulkPerito
-                  ? <button className="btn text-xs py-1" onClick={() => setShowBulkPerito(true)}>Alterar perito…</button>
-                  : <>
-                      <input className="input text-xs py-1 w-40" placeholder="Nome do perito"
-                        value={bulkPerito} onChange={e => setBulkPerito(e.target.value)} list="peritos-bulk-dash"/>
-                      <datalist id="peritos-bulk-dash">{peritos.map(p => <option key={p} value={p}/>)}</datalist>
-                      <button className="btn btn-primary text-xs py-1" onClick={() => bulkUpdate.mutate({ field:'perito_avaliador', value:bulkPerito })}>OK</button>
-                      <button className="btn text-xs py-1" onClick={() => { setShowBulkPerito(false); setBulkPerito('') }}>✕</button>
-                    </>
-                }
-              </div>
+              {role === 'admin' && (
+                <div className="flex items-center gap-1.5">
+                  {!showBulkPerito
+                    ? <button className="btn text-xs py-1" onClick={() => setShowBulkPerito(true)}>Alterar perito…</button>
+                    : <>
+                        <input className="input text-xs py-1 w-40" placeholder="Nome do perito"
+                          value={bulkPerito} onChange={e => setBulkPerito(e.target.value)} list="peritos-bulk-dash"/>
+                        <datalist id="peritos-bulk-dash">{peritos.map(p => <option key={p} value={p}/>)}</datalist>
+                        <button className="btn btn-primary text-xs py-1" onClick={() => bulkUpdate.mutate({ field:'perito_avaliador', value:bulkPerito })}>OK</button>
+                        <button className="btn text-xs py-1" onClick={() => { setShowBulkPerito(false); setBulkPerito('') }}>✕</button>
+                      </>
+                  }
+                </div>
+              )}
 
               <button className="btn text-xs text-red-500 hover:bg-red-50 border-red-200 ml-auto"
                 onClick={() => { if (confirm(`Eliminar ${selected.size} imóveis permanentemente?`)) bulkDelete.mutate() }}>
@@ -358,12 +356,12 @@ export default function Dashboard() {
                           : <Square size={13}/>}
                       </button>
                     </th>
-                    <th>Ref.</th>
+                    <th>Ref. Externa</th>
                     <th>Localização</th>
                     <th>Tipo</th>
                     {role === 'admin' && <th>Perito</th>}
                     <th>Visita</th>
-                    <th>Financeiro</th>
+                    <th>Faturação</th>
                     <th>Honorário</th>
                     <th className="text-center">Fotos</th>
                     <th className="text-center">Comparáveis</th>
@@ -379,25 +377,46 @@ export default function Dashboard() {
                           {selected.has(p.id) ? <CheckSquare size={13} className="text-brand-400"/> : <Square size={13}/>}
                         </button>
                       </td>
+
+                      {/* Ref. externa como identificador principal */}
                       <td>
                         <Link to={`/properties/${p.id}`} className="text-brand-600 hover:underline font-medium whitespace-nowrap">
-                          {p.ref}
+                          {p.external_ref || p.ref || p.id}
                         </Link>
                       </td>
+
                       <td className="text-gray-600 max-w-[160px] truncate">{p.municipality || p.address || '—'}</td>
                       <td className="text-gray-600 whitespace-nowrap">{[p.property_type, p.typology].filter(Boolean).join(' ') || '—'}</td>
+
                       {role === 'admin' && (
                         <td>
                           <InlineEdit value={p.perito_avaliador}
                             onSave={val => updateField.mutate({ id:p.id, field:'perito_avaliador', value:val||null })}/>
                         </td>
                       )}
+
+                      {/* Visita — inline select */}
                       <td>
-                        <InlineVisitSelect id={p.id} value={p.visit_status}
-                          onChange={(id, val) => updateField.mutate({ id, field:'visit_status', value:val })}/>
+                        <InlineSelect
+                          value={p.visit_status}
+                          options={VISIT_LABELS}
+                          renderValue={v => <VisitBadge status={v} />}
+                          onChange={val => updateField.mutate({ id:p.id, field:'visit_status', value:val })}
+                        />
                       </td>
-                      <td><BillingBadge status={p.billing_status} /></td>
+
+                      {/* Faturação — inline select */}
+                      <td>
+                        <InlineSelect
+                          value={p.billing_status}
+                          options={BILLING_LABELS}
+                          renderValue={v => <BillingBadge status={v} />}
+                          onChange={val => updateField.mutate({ id:p.id, field:'billing_status', value:val })}
+                        />
+                      </td>
+
                       <td className="text-gray-600 whitespace-nowrap">{p.fee_amount ? formatCurrency(p.fee_amount) : '—'}</td>
+
                       <td className="text-center">
                         <BoolBadge value={!!p.tem_fotos} trueLabel="Sim" falseLabel="Não"
                           color="bg-blue-100 text-blue-600 hover:bg-blue-200"
@@ -413,6 +432,7 @@ export default function Dashboard() {
                           color="bg-emerald-100 text-emerald-600 hover:bg-emerald-200"
                           onClick={() => updateField.mutate({ id:p.id, field:'verificado', value:!p.verificado })}/>
                       </td>
+
                       <td className="text-gray-400 whitespace-nowrap">{formatDate(p.updated_at)}</td>
                     </tr>
                   ))}
