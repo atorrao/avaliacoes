@@ -114,9 +114,17 @@ export default function Dashboard() {
     .reduce((s: number, p: any) => s + (p.fee_amount || 0), 0)
   const pct = total > 0 ? Math.round((visited / total) * 100) : 0
 
-  const peritos = useMemo(() =>
-    [...new Set(recent.map((r: any) => r.perito_avaliador).filter(Boolean))].sort() as string[]
-  , [recent])
+  // Lista de peritos vem da tabela profiles (utilizadores reais)
+  const { data: profilesData = [] } = useQuery({
+    queryKey: ['profiles-peritos'],
+    queryFn: async () => {
+      const { data } = await supabase.from('profiles').select('name, role').order('name')
+      return (data || []) as { name: string; role: string }[]
+    }
+  })
+  const peritos = profilesData
+    .filter(p => p.role === 'perito' && p.name)
+    .map(p => p.name) as string[]
 
   // Filtered rows
   const filtered = useMemo(() => recent.filter((p: any) => {

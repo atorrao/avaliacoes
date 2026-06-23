@@ -103,7 +103,7 @@ function ColumnPicker({ visible, onChange }: { visible:string[]; onChange:(v:str
   )
 }
 
-function InlineEdit({ value, onSave }: { value:string|null; onSave:(v:string)=>void }) {
+function InlineEdit({ value, onSave, datalistId, options }: { value:string|null; onSave:(v:string)=>void; datalistId?:string; options?:string[] }) {
   const [editing, setEditing] = useState(false)
   const [val, setVal]         = useState(value || '')
   useEffect(() => setVal(value || ''), [value])
@@ -117,7 +117,11 @@ function InlineEdit({ value, onSave }: { value:string|null; onSave:(v:string)=>v
     <div className="flex items-center gap-1" onClick={e => e.stopPropagation()}>
       <input className="border border-brand-300 rounded px-1 py-0.5 text-xs w-28 focus:outline-none focus:ring-1 focus:ring-brand-400"
         value={val} onChange={e => setVal(e.target.value)} autoFocus
+        list={datalistId}
         onKeyDown={e => { if (e.key==='Enter') { onSave(val); setEditing(false) } if (e.key==='Escape') setEditing(false) }}/>
+      {datalistId && options && (
+        <datalist id={datalistId}>{options.map(o => <option key={o} value={o}/>)}</datalist>
+      )}
       <button onClick={() => { onSave(val); setEditing(false) }} className="text-emerald-500"><Check size={12}/></button>
       <button onClick={() => { setVal(value||''); setEditing(false) }} className="text-gray-400"><X size={12}/></button>
     </div>
@@ -138,6 +142,21 @@ export default function Properties() {
   function updateFilters(partial: Partial<PropertyFilters>) {
     setFilters(prev => { const next = {...prev,...partial}; saveFilters(next); return next })
   }
+
+  // Lista de peritos vem da tabela profiles (utilizadores reais)
+  const { data: profilesData = [] } = useQuery({
+    queryKey: ['profiles-peritos'],
+    queryFn: async () => {
+      const { data } = await supabase
+        .from('profiles')
+        .select('name, role')
+        .order('name')
+      return (data || []) as { name: string; role: string }[]
+    }
+  })
+  const peritos = profilesData
+    .filter(p => p.role === 'perito' && p.name)
+    .map(p => p.name) as string[]
 
   const { data: rows = [], isLoading } = useQuery({
     queryKey: ['properties-all'],
@@ -170,7 +189,7 @@ export default function Properties() {
     const base = filters.districtFilter.length ? rows.filter((r: any) => filters.districtFilter.includes(r.district)) : rows
     return [...new Set(base.map((r: any) => r.parish).filter(Boolean))].sort()
   }, [rows, filters.districtFilter])
-  const peritos = useMemo(() => [...new Set(rows.map((r: any) => r.perito_avaliador).filter(Boolean))].sort(), [rows])
+
 
   const filtered = useMemo(() => rows.filter((r: any) => {
     if (filters.visitFilter   && r.visit_status     !== filters.visitFilter)   return false
@@ -268,7 +287,7 @@ export default function Properties() {
       case 'billing_status':   return <span className="text-gray-600 whitespace-nowrap">{BILLING_LABELS[p.billing_status]||'—'}</span>
       case 'fee_amount':       return <span className="font-medium text-gray-800 whitespace-nowrap">{p.fee_amount?formatCurrency(p.fee_amount):'—'}</span>
       case 'geo':              return p.latitude ? <span className="text-emerald-500">✓</span> : <span className="text-gray-300">—</span>
-      case 'perito_avaliador': return <InlineEdit value={p.perito_avaliador} onSave={val => updatePerito.mutate({ id:p.id, value:val })}/>
+      case 'perito_avaliador': return <InlineEdit value={p.perito_avaliador} onSave={val => updatePerito.mutate({ id:p.id, value:val })} datalistId="peritos-inline" options={peritos}/>
       case 'area_m2':          return <span className={cls}>{p.area_m2?`${p.area_m2} m²`:'—'}</span>
       case 'area_garage_m2':   return <span className={cls}>{p.area_garage_m2?`${p.area_garage_m2} m²`:'—'}</span>
       case 'area_annex_m2':    return <span className={cls}>{p.area_annex_m2?`${p.area_annex_m2} m²`:'—'}</span>
