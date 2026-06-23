@@ -283,7 +283,6 @@ export default function Properties() {
     const cls = isAbanca ? 'text-blue-700 whitespace-nowrap' : 'text-gray-600 whitespace-nowrap'
     switch(col) {
       case 'external_ref':    return <Link to={`/properties/${p.id}`} className="text-brand-600 hover:underline font-semibold whitespace-nowrap">{p.external_ref || p.ref || '—'}</Link>
-      case 'ref':              return <Link to={`/properties/${p.id}`} className="text-brand-600 hover:underline font-semibold whitespace-nowrap">{p.external_ref || p.ref || '—'}</Link>
       case 'visit_status':     return <VisitBadge status={p.visit_status}/>
       case 'billing_status':   return <span className="text-gray-600 whitespace-nowrap">{BILLING_LABELS[p.billing_status]||'—'}</span>
       case 'fee_amount':       return <span className="font-medium text-gray-800 whitespace-nowrap">{p.fee_amount?formatCurrency(p.fee_amount):'—'}</span>
