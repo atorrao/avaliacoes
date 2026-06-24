@@ -133,7 +133,10 @@ export default function PropertyDetail() {
       const L = window.L
       const lat = property.latitude || 39.5, lon = property.longitude || -8.0
       mapInst.current = L.map(mapRef.current).setView([lat, lon], property.latitude ? 16 : 7)
-      L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { attribution: '© OpenStreetMap', maxZoom: 19 }).addTo(mapInst.current)
+      const satellite = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', { attribution: '© Esri, Maxar', maxZoom: 19 })
+      const street    = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { attribution: '© OpenStreetMap', maxZoom: 19 })
+      satellite.addTo(mapInst.current)
+      L.control.layers({ 'Satélite': satellite, 'Mapa': street }, {}, { position: 'topright' }).addTo(mapInst.current)
       if (property.latitude) {
         L.marker([property.latitude, property.longitude], {
           draggable: true,

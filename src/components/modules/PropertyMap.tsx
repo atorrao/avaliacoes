@@ -44,10 +44,27 @@ export default function PropertyMap() {
     if (!ready || !mapRef.current || mapInst.current) return
     const L = window.L
     mapInst.current = L.map(mapRef.current).setView([39.5, -8.0], 7)
-    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-      attribution: '© <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>',
-      maxZoom: 19
-    }).addTo(mapInst.current)
+
+    // Camada satélite (default)
+    const satellite = L.tileLayer(
+      'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',
+      { attribution: '© Esri, Maxar, Earthstar Geographics', maxZoom: 19 }
+    )
+
+    // Camada rua
+    const street = L.tileLayer(
+      'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',
+      { attribution: '© OpenStreetMap', maxZoom: 19 }
+    )
+
+    satellite.addTo(mapInst.current)
+
+    // Controlo de camadas (canto superior direito)
+    L.control.layers(
+      { 'Satélite': satellite, 'Mapa': street },
+      {},
+      { position: 'topright' }
+    ).addTo(mapInst.current)
   }, [ready])
 
   useEffect(() => {
