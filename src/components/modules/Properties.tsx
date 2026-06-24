@@ -7,7 +7,7 @@ import { formatCurrency } from '@/lib/utils'
 import { ChevronDown, ChevronRight, Trash2, CheckSquare, Square, Eye, EyeOff, Pencil, Check, X } from 'lucide-react'
 import toast from 'react-hot-toast'
 import {
-  getSavedFilters, saveFilters, clearFilters, type PropertyFilters,
+  getSavedFilters as _getSavedFilters, saveFilters as _saveFilters, clearFilters as _clearFilters, type PropertyFilters,
   getSavedVisibleCols, saveVisibleCols, ALL_COLUMNS, type ColDef
 } from '@/lib/userPrefs'
 
@@ -128,9 +128,21 @@ function InlineEdit({ value, onSave, datalistId, options }: { value:string|null;
   )
 }
 
+const FILTER_KEY = 'addvaliador_props_filters'
+
+function loadFilters(): PropertyFilters {
+  try {
+    const r = sessionStorage.getItem(FILTER_KEY)
+    return r ? JSON.parse(r) : { search:'', visitFilter:'', billingFilter:'', districtFilter:[], parishFilter:[], peritoFilter:'' }
+  } catch { return { search:'', visitFilter:'', billingFilter:'', districtFilter:[], parishFilter:[], peritoFilter:'' } }
+}
+function persistFilters(f: PropertyFilters) {
+  try { sessionStorage.setItem(FILTER_KEY, JSON.stringify(f)) } catch {}
+}
+
 export default function Properties() {
   const qc = useQueryClient()
-  const [filters,     setFilters]     = useState<PropertyFilters>(getSavedFilters)
+  const [filters,     setFiltersRaw] = useState<PropertyFilters>(loadFilters)
   const [visibleCols, setVisibleCols] = useState<string[]>(getSavedVisibleCols)
   const [collapsed,   setCollapsed]   = useState<Record<string,boolean>>({})
   const [selected,    setSelected]    = useState<Set<string>>(new Set())
@@ -139,8 +151,16 @@ export default function Properties() {
   const [bulkPerito,  setBulkPerito]  = useState('')
   const [showBulkPerito, setShowBulkPerito] = useState(false)
 
+  function setFilters(f: PropertyFilters | ((prev: PropertyFilters) => PropertyFilters)) {
+    setFiltersRaw(prev => {
+      const next = typeof f === 'function' ? f(prev) : f
+      persistFilters(next)
+      return next
+    })
+  }
+
   function updateFilters(partial: Partial<PropertyFilters>) {
-    setFilters(prev => { const next = {...prev,...partial}; saveFilters(next); return next })
+    setFilters(prev => { const next = {...prev,...partial}; return next })
   }
 
   // Lista de peritos vem da tabela profiles (utilizadores reais)
@@ -320,7 +340,7 @@ export default function Properties() {
           <option value="">Estado financeiro</option>
           {Object.entries(BILLING_LABELS).map(([k,v]) => <option key={k} value={k}>{v}</option>)}
         </select>
-        {hasFilters && <button className="btn text-xs" onClick={() => { clearFilters(); setFilters({ search:'', visitFilter:'', billingFilter:'', districtFilter:[], parishFilter:[], peritoFilter:'' }) }}>Limpar</button>}
+        {hasFilters && <button className="btn text-xs" onClick={() => { try { sessionStorage.removeItem(FILTER_KEY) } catch {} setFilters({ search:'', visitFilter:'', billingFilter:'', districtFilter:[], parishFilter:[], peritoFilter:'' }) }}>Limpar</button>}
       </div>
 
       {selected.size > 0 && (
