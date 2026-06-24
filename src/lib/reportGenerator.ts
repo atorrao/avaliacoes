@@ -209,43 +209,43 @@ export async function generateAbancaReport(
   set('AC303', fmtDate(p.prev_valuation_date))
   set('D306',  v(p.perito_avaliador))
 
-  // FOTOS DO IMÓVEL — inserir na folha principal a partir da linha 348
+  // FOTOS DO IMÓVEL — posições exactas no template (folha RELATÓRIO - PT)
+  // Foto 1: B350:Q362  Foto 2: R350:AI362
+  // Foto 3: B363:Q375  Foto 4: R363:AI375
+  // Foto 5: B376:Q388  Foto 6: R376:AI388
+  // Foto 7: B389:Q401  Foto 8: R389:AI401
+  // Colunas: B=1, Q=16, R=17, AI=34 (0-indexed: B=1, Q=16, R=17, AI=34)
   if (photos.length > 0) {
-    // Tenta usar a folha principal primeiro (linha 348 = "Anexo - Fotos do Imóvel")
-    let wsf = wb.getWorksheet('RELATÓRIO - PT') || wb.getWorksheet('Fotos do Imóvel')
-    if (!wsf) wsf = wb.addWorksheet('Fotos do Imóvel')
+    const wsf = wb.getWorksheet('RELATÓRIO - PT')
+    if (wsf) {
+      // Posições das 8 fotos: { col (0-indexed), row (1-indexed início), rowEnd }
+      const PHOTO_SLOTS = [
+        { col: 1,  rowStart: 350, rowEnd: 362 }, // Foto 1 — B350:Q362
+        { col: 17, rowStart: 350, rowEnd: 362 }, // Foto 2 — R350:AI362
+        { col: 1,  rowStart: 363, rowEnd: 375 }, // Foto 3 — B363:Q375
+        { col: 17, rowStart: 363, rowEnd: 375 }, // Foto 4 — R363:AI375
+        { col: 1,  rowStart: 376, rowEnd: 388 }, // Foto 5 — B376:Q388
+        { col: 17, rowStart: 376, rowEnd: 388 }, // Foto 6 — R376:AI388
+        { col: 1,  rowStart: 389, rowEnd: 401 }, // Foto 7 — B389:Q401
+        { col: 17, rowStart: 389, rowEnd: 401 }, // Foto 8 — R389:AI401
+      ]
 
-    const isMainSheet = wsf.name === 'RELATÓRIO - PT'
-    const startRow = isMainSheet ? 348 : 5
-
-    if (!isMainSheet) {
-      wsf.getCell('A1').value = 'RELATÓRIO DE AVALIAÇÃO IMOBILIÁRIA'
-      wsf.getCell('A1').font  = { bold: true, size: 14 }
-      wsf.getCell('A2').value = 'ANEXO — REGISTO FOTOGRÁFICO DO IMÓVEL'
-      wsf.getCell('A2').font  = { bold: true, size: 12 }
-      wsf.getCell('A3').value = `Ref.: ${v(p.ref)}  —  ${v(p.street, v(p.address))}  —  ${v(p.municipality)}`
-    }
-
-    wsf.getColumn(1).width = 45
-    wsf.getColumn(5).width = 45
-
-    let row = startRow, col = 0
-
-    for (let i = 0; i < Math.min(photos.length, 10); i++) {
-      const photo = photos[i]
-      if (!photo.url) continue
-      try {
-        const buf = await fetchBuf(photo.url)
-        if (!buf) continue
-        const ext = photo.url.toLowerCase().includes('.png') ? 'png' : 'jpeg'
-        const imgId = wb.addImage({ buffer: buf as ArrayBuffer, extension: ext })
-        wsf.addImage(imgId, {
-          tl: { col, row: row - 1 },
-          ext: { width: 300, height: 220 }
-        })
-        wsf.getRow(row).height = 165
-        if (col === 0) { col = 4 } else { col = 0; row += 17 }
-      } catch { /* ignorar foto com erro */ }
+      for (let i = 0; i < Math.min(photos.length, 8); i++) {
+        const photo = photos[i]
+        if (!photo.url) continue
+        try {
+          const buf = await fetchBuf(photo.url)
+          if (!buf) continue
+          const ext    = photo.url.toLowerCase().includes('.png') ? 'png' : 'jpeg'
+          const imgId  = wb.addImage({ buffer: buf as ArrayBuffer, extension: ext })
+          const slot   = PHOTO_SLOTS[i]
+          const height = slot.rowEnd - slot.rowStart + 1 // nº linhas
+          wsf.addImage(imgId, {
+            tl: { col: slot.col,      row: slot.rowStart - 1 }, // row 0-indexed
+            br: { col: slot.col + 15, row: slot.rowEnd },       // B+15=Q, R+15=AI
+          })
+        } catch { /* ignorar foto com erro */ }
+      }
     }
   }
 
