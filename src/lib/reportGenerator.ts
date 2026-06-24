@@ -230,6 +230,18 @@ export async function generateAbancaReport(
         { col: 17, rowStart: 389, rowEnd: 401 }, // Foto 8 — R389:AI401
       ]
 
+      // Dimensões aproximadas de cada slot em pixels
+      // 15 colunas × largura padrão (~64px) = 960px → mas Excel varia; usamos 280px para a foto
+      // 13 linhas × altura padrão (~20px)   = 260px → usamos 175px para a foto
+      // Offset para centrar: (slotW - imgW) / 2 em EMUs (1px = 9525 EMUs)
+      const IMG_W  = 280  // largura da imagem em px
+      const IMG_H  = 175  // altura da imagem em px
+      const SLOT_W = 480  // largura aproximada do slot em px (15 cols × ~32px col padrão Excel)
+      const SLOT_H = 240  // altura aproximada do slot em px (13 linhas × ~18.5px)
+      const EMU    = 9525
+      const offX   = Math.max(0, Math.round((SLOT_W - IMG_W) / 2)) * EMU
+      const offY   = Math.max(0, Math.round((SLOT_H - IMG_H) / 2)) * EMU
+
       for (let i = 0; i < Math.min(photos.length, 8); i++) {
         const photo = photos[i]
         if (!photo.url) continue
@@ -239,11 +251,9 @@ export async function generateAbancaReport(
           const ext   = photo.url.toLowerCase().includes('.png') ? 'png' : 'jpeg'
           const imgId = wb.addImage({ buffer: buf as ArrayBuffer, extension: ext })
           const slot  = PHOTO_SLOTS[i]
-          // ExcelJS addImage com tl/br requer cast para any para evitar erro TS2740
-          // (a interface do ExcelJS aceita {col,row} mas os tipos declarados são mais restritos)
           wsf.addImage(imgId, {
-            tl: { col: slot.col,      row: slot.rowStart - 1 } as any,
-            br: { col: slot.col + 15, row: slot.rowEnd }       as any,
+            tl:  { col: slot.col, row: slot.rowStart - 1, colOff: offX, rowOff: offY } as any,
+            ext: { width: IMG_W,  height: IMG_H },
           })
         } catch { /* ignorar foto com erro */ }
       }
