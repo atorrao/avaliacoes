@@ -236,13 +236,14 @@ export async function generateAbancaReport(
         try {
           const buf = await fetchBuf(photo.url)
           if (!buf) continue
-          const ext    = photo.url.toLowerCase().includes('.png') ? 'png' : 'jpeg'
-          const imgId  = wb.addImage({ buffer: buf as ArrayBuffer, extension: ext })
-          const slot   = PHOTO_SLOTS[i]
-          const height = slot.rowEnd - slot.rowStart + 1 // nº linhas
+          const ext   = photo.url.toLowerCase().includes('.png') ? 'png' : 'jpeg'
+          const imgId = wb.addImage({ buffer: buf as ArrayBuffer, extension: ext })
+          const slot  = PHOTO_SLOTS[i]
+          // ExcelJS addImage com tl/br requer cast para any para evitar erro TS2740
+          // (a interface do ExcelJS aceita {col,row} mas os tipos declarados são mais restritos)
           wsf.addImage(imgId, {
-            tl: { col: slot.col,      row: slot.rowStart - 1 }, // row 0-indexed
-            br: { col: slot.col + 15, row: slot.rowEnd },       // B+15=Q, R+15=AI
+            tl: { col: slot.col,      row: slot.rowStart - 1 } as any,
+            br: { col: slot.col + 15, row: slot.rowEnd }       as any,
           })
         } catch { /* ignorar foto com erro */ }
       }
