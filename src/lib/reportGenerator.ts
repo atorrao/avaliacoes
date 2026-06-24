@@ -209,20 +209,27 @@ export async function generateAbancaReport(
   set('AC303', fmtDate(p.prev_valuation_date))
   set('D306',  v(p.perito_avaliador))
 
-  // FOTOS DO IMÓVEL
+  // FOTOS DO IMÓVEL — inserir na folha principal a partir da linha 348
   if (photos.length > 0) {
-    let wsf = wb.getWorksheet('Fotos do Imóvel')
+    // Tenta usar a folha principal primeiro (linha 348 = "Anexo - Fotos do Imóvel")
+    let wsf = wb.getWorksheet('RELATÓRIO - PT') || wb.getWorksheet('Fotos do Imóvel')
     if (!wsf) wsf = wb.addWorksheet('Fotos do Imóvel')
 
-    wsf.getCell('A1').value = 'RELATÓRIO DE AVALIAÇÃO IMOBILIÁRIA'
-    wsf.getCell('A1').font  = { bold: true, size: 14 }
-    wsf.getCell('A2').value = 'ANEXO — REGISTO FOTOGRÁFICO DO IMÓVEL'
-    wsf.getCell('A2').font  = { bold: true, size: 12 }
-    wsf.getCell('A3').value = `Ref.: ${v(p.ref)}  —  ${v(p.street, v(p.address))}  —  ${v(p.municipality)}`
+    const isMainSheet = wsf.name === 'RELATÓRIO - PT'
+    const startRow = isMainSheet ? 348 : 5
+
+    if (!isMainSheet) {
+      wsf.getCell('A1').value = 'RELATÓRIO DE AVALIAÇÃO IMOBILIÁRIA'
+      wsf.getCell('A1').font  = { bold: true, size: 14 }
+      wsf.getCell('A2').value = 'ANEXO — REGISTO FOTOGRÁFICO DO IMÓVEL'
+      wsf.getCell('A2').font  = { bold: true, size: 12 }
+      wsf.getCell('A3').value = `Ref.: ${v(p.ref)}  —  ${v(p.street, v(p.address))}  —  ${v(p.municipality)}`
+    }
+
     wsf.getColumn(1).width = 45
     wsf.getColumn(5).width = 45
 
-    let row = 5, col = 0
+    let row = startRow, col = 0
 
     for (let i = 0; i < Math.min(photos.length, 10); i++) {
       const photo = photos[i]
@@ -232,9 +239,11 @@ export async function generateAbancaReport(
         if (!buf) continue
         const ext = photo.url.toLowerCase().includes('.png') ? 'png' : 'jpeg'
         const imgId = wb.addImage({ buffer: buf as ArrayBuffer, extension: ext })
-        wsf.addImage(imgId, { tl: { col, row: row - 1 }, ext: { width: 300, height: 220 } })
+        wsf.addImage(imgId, {
+          tl: { col, row: row - 1 },
+          ext: { width: 300, height: 220 }
+        })
         wsf.getRow(row).height = 165
-        wsf.getCell(row + 15, col + 1).value = `Foto ${i + 1}`
         if (col === 0) { col = 4 } else { col = 0; row += 17 }
       } catch { /* ignorar foto com erro */ }
     }
@@ -242,7 +251,7 @@ export async function generateAbancaReport(
 
   // Descarregar ficheiro
   const buf = await wb.xlsx.writeBuffer()
-  const ref  = v(p.ref, 'imovel').replace(/[^a-zA-Z0-9_-]/g, '_')
+  const ref  = v(p.external_ref, v(p.ref, 'imovel')).replace(/[^a-zA-Z0-9_-]/g, '_')
   const date = new Date().toISOString().slice(0, 10)
   saveAs(
     new Blob([buf as BlobPart], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' }),
