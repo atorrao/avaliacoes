@@ -212,7 +212,7 @@ function ImportPanel({ portfolioId, clientId, onClose, onDone }: { portfolioId:s
         else if (tipo === 'SOLAR')                                                                                                                         activity = 'Terreno urbano'
 
         if (activity) {
-          const fee = calculateFee(activity, area, feeRules)
+          const fee = calculateFee(activity, area, feeRules, p.property_subtype, p.tipo_servico)
           if (fee) p.fee_amount = fee
         }
       }
