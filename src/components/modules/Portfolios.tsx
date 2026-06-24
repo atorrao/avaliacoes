@@ -190,22 +190,26 @@ function ImportPanel({ portfolioId, clientId, onClose, onDone }: { portfolioId:s
       })
 
       if (feeRules.length && p.property_type && !p.fee_amount) {
-        // Map exact ABANCA TIPO_BIEN values to precário activities
-        const tipo = (p.property_type || '').toUpperCase().trim()
+        const tipo    = (p.property_type    || '').toUpperCase().trim()
         const subtipo = (p.property_subtype || '').toUpperCase().trim()
-        let activity = ''
-        let area = p.area_m2 || p.gross_area || 0
+        let activity  = ''
+        const area    = p.area_m2 || p.gross_area || 0
 
-        if (tipo === 'VIVIENDA (PISO)')         activity = 'Apartamento'
-        else if (tipo === 'VIVIENDA UNIFAMILIAR') activity = 'Moradias unifamiliares'
-        else if (tipo === 'GARAJE')              activity = 'Garagem'
-        else if (tipo === 'EDIFICIO')            activity = 'Habitação'
-        else if (tipo === 'LOCAL DE NEGOCIO')    activity = 'Comércio'
-        else if (tipo === 'NAVE')                activity = 'Naves industriais'
+        // Mapeamento completo dos valores TIPO_BIEN do ABANCA
+        if      (tipo === 'VIVIENDA (PISO)'       || tipo === 'VIVIENDA' || tipo === 'PISO' || tipo === 'ATICO' || tipo === 'DUPLEX' || tipo === 'ESTUDIO') activity = 'Apartamento'
+        else if (tipo === 'VIVIENDA UNIFAMILIAR'  || tipo === 'CHALET'   || tipo === 'CASA')                                                               activity = 'Moradias unifamiliares'
+        else if (tipo === 'CHALET ADOSADO'        || tipo === 'CHALET PAREADO' || tipo === 'CASA ADOSADA')                                                 activity = 'Moradias em banda'
+        else if (tipo === 'GARAJE'                || tipo === 'PLAZA DE GARAJE')                                                                           activity = 'Garagem'
+        else if (tipo === 'TRASTERO')                                                                                                                      activity = 'Arrumos'
+        else if (tipo === 'LOCAL COMERCIAL'       || tipo === 'LOCAL'    || tipo === 'LOCAL DE NEGOCIO')                                                   activity = 'Loja'
+        else if (tipo === 'OFICINA')                                                                                                                       activity = 'Escritórios'
+        else if (tipo === 'NAVE'                  || tipo === 'NAVE INDUSTRIAL')                                                                           activity = 'Naves industriais'
+        else if (tipo === 'EDIFICIO')                                                                                                                      activity = 'Edifício'
         else if (tipo === 'TERRENO') {
-          // FINCA RÚSTICA subtipo → terreno rústico, rest → terreno urbano
-          activity = subtipo === 'FINCA RÚSTICA' ? 'Terreno rústico' : 'Terreno urbano'
+          activity = (subtipo === 'FINCA RÚSTICA' || subtipo === 'FINCA RUSTICA') ? 'Terreno rústico' : 'Terreno urbano'
         }
+        else if (tipo === 'FINCA RÚSTICA'         || tipo === 'FINCA RUSTICA' || tipo === 'TERRENO FINCA RUSTICA' || tipo === 'TERRENO FINCA RÚSTICA')    activity = 'Terreno rústico'
+        else if (tipo === 'SOLAR')                                                                                                                         activity = 'Terreno urbano'
 
         if (activity) {
           const fee = calculateFee(activity, area, feeRules)

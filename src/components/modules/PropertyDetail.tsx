@@ -12,12 +12,13 @@ import toast from 'react-hot-toast'
 
 declare global { interface Window { L: any } }
 
-const TABS = ['info','location','map','photos','construction','market_chars','prev','comps','billing','notes'] as const
+const TABS = ['info','location','map','construction','market_chars','photos','comps','prev','notes','billing'] as const
 type Tab = typeof TABS[number]
 const TAB_LABELS: Record<Tab, string> = {
   info: 'Identificação', location: 'Localização', map: 'Mapa',
-  photos: 'Fotos', construction: 'Construção', market_chars: 'Localiz./Mercado',
-  prev: 'Aval. anterior', comps: 'Comparáveis', billing: 'Faturação', notes: 'Notas'
+  construction: 'Construção', market_chars: 'Localiz./Mercado',
+  photos: 'Fotos', comps: 'Comparáveis', prev: 'Aval. anterior',
+  notes: 'Notas', billing: 'Faturação'
 }
 
 function useLeaflet(active: boolean, cb: () => void) {
@@ -177,10 +178,18 @@ export default function PropertyDetail() {
       const templateUrl = import.meta.env.VITE_REPORT_TEMPLATE_URL
       if (!templateUrl) throw new Error('VITE_REPORT_TEMPLATE_URL não está configurada. Carrega o template para o Supabase Storage e define a variável.')
 
-      const photoUrls = photos.map((ph: any) => {
+      // Re-fetch photos frescos da BD para garantir que temos todos
+      const { data: freshPhotos } = await supabase
+        .from('property_photos')
+        .select('*')
+        .eq('property_id', property.id)
+        .order('slot')
+        .order('sort_order')
+
+      const photoUrls = (freshPhotos || []).map((ph: any) => {
         const { data } = supabase.storage.from('photos').getPublicUrl(ph.storage_path)
         return { ...ph, url: data.publicUrl }
-      })
+      }).filter((ph: any) => ph.url)
 
       await generateAbancaReport(property, photoUrls, comps, templateUrl)
       toast.success('Relatório gerado com sucesso')
@@ -428,6 +437,17 @@ export default function PropertyDetail() {
               <F label="Data conclusão/entrega"   field="data_conclusao"        value={property.data_conclusao}        type="date" onSave={save} />
               <F label="Data relatório"           field="data_relatorio"        value={property.data_relatorio}        type="date" onSave={save} />
             </div>
+            <div className="card space-y-3 md:col-span-2">
+              <h3 className="text-sm font-semibold text-gray-700">Conclusão — Valores finais</h3>
+              <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
+                <F label="Valor de Mercado (€)"             field="valor_mercado"            value={property.valor_mercado}            type="number" onSave={save} />
+                <F label="V.V.R. — Valor Venda Rápida (€)"  field="valor_venda_rapida"       value={property.valor_venda_rapida}       type="number" onSave={save} />
+                <F label="Valor de Seguro (€)"              field="valor_seguro"             value={property.valor_seguro}             type="number" onSave={save} />
+                <F label="% Obra"                           field="pct_obra"                 value={property.pct_obra}                 type="number" onSave={save} />
+                <F label="Valor de Mercado actual (€)"      field="valor_mercado_atual"      value={property.valor_mercado_atual}      type="number" onSave={save} />
+                <F label="V.V.R. actual (€)"                field="valor_venda_rapida_atual" value={property.valor_venda_rapida_atual} type="number" onSave={save} />
+              </div>
+            </div>
           </div>
         )}
 
@@ -511,32 +531,21 @@ export default function PropertyDetail() {
 
         {/* TAB: Faturação */}
         {tab === 'billing' && (
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            <div className="card space-y-4">
-              <h3 className="text-sm font-semibold text-gray-700">Estado financeiro</h3>
-              <div>
-                <label className="label">Estado</label>
-                <select className="input" value={property.billing_status || ''} onChange={e => { save({ billing_status: e.target.value }); toast.success('Guardado') }}>
-                  <option value="">—</option>
-                  {Object.entries(BILLING_STATUS_LABELS).map(([k, v]) => <option key={k} value={k}>{v as string}</option>)}
-                </select>
-              </div>
-              <F label="Honorário (€)"  field="fee_amount"     value={property.fee_amount}     type="number" onSave={save} />
-              <F label="Número PO"      field="po_number"      value={property.po_number}                    onSave={save} />
-              <F label="Data PO"        field="po_date"        value={property.po_date}        type="date"   onSave={save} />
-              <F label="Nº fatura"      field="invoice_number" value={property.invoice_number}              onSave={save} />
-              <F label="Data fatura"    field="invoice_date"   value={property.invoice_date}   type="date"   onSave={save} />
-              <F label="Data pagamento" field="payment_date"   value={property.payment_date}   type="date"   onSave={save} />
+          <div className="card space-y-4 max-w-lg">
+            <h3 className="text-sm font-semibold text-gray-700">Estado financeiro</h3>
+            <div>
+              <label className="label">Estado</label>
+              <select className="input" value={property.billing_status || ''} onChange={e => { save({ billing_status: e.target.value }); toast.success('Guardado') }}>
+                <option value="">—</option>
+                {Object.entries(BILLING_STATUS_LABELS).map(([k, v]) => <option key={k} value={k}>{v as string}</option>)}
+              </select>
             </div>
-            <div className="card space-y-4">
-              <h3 className="text-sm font-semibold text-gray-700">Conclusão — Valores finais</h3>
-              <F label="Valor de Mercado (€)"      field="valor_mercado"            value={property.valor_mercado}            type="number" onSave={save} />
-              <F label="V.V.R. — Valor Venda Rápida (€)" field="valor_venda_rapida" value={property.valor_venda_rapida}       type="number" onSave={save} />
-              <F label="Valor de Seguro (€)"       field="valor_seguro"             value={property.valor_seguro}             type="number" onSave={save} />
-              <F label="% Obra"                    field="pct_obra"                 value={property.pct_obra}                 type="number" onSave={save} />
-              <F label="Valor de Mercado actual (€)" field="valor_mercado_atual"    value={property.valor_mercado_atual}      type="number" onSave={save} />
-              <F label="V.V.R. actual (€)"         field="valor_venda_rapida_atual" value={property.valor_venda_rapida_atual} type="number" onSave={save} />
-            </div>
+            <F label="Honorário (€)"  field="fee_amount"     value={property.fee_amount}     type="number" onSave={save} />
+            <F label="Número PO"      field="po_number"      value={property.po_number}                    onSave={save} />
+            <F label="Data PO"        field="po_date"        value={property.po_date}        type="date"   onSave={save} />
+            <F label="Nº fatura"      field="invoice_number" value={property.invoice_number}              onSave={save} />
+            <F label="Data fatura"    field="invoice_date"   value={property.invoice_date}   type="date"   onSave={save} />
+            <F label="Data pagamento" field="payment_date"   value={property.payment_date}   type="date"   onSave={save} />
           </div>
         )}
 
